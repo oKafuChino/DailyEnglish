@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import User
 from app.domain.enums import UserStatus
+from app.domain.scheduling import next_daily_push_at
 from app.domain.time import UTC
 
 
@@ -49,7 +50,32 @@ class UserRepository:
         user.last_active_at = now
         return user
 
-    async def activate(self, user: User, *, at: datetime) -> None:
+    async def activate(self, user: User, *, at: datetime | None = None) -> None:
+        at = at or datetime.now(UTC)
         user.status = UserStatus.ACTIVE
         user.registered_at = user.registered_at or at
         user.last_active_at = at
+        if user.daily_push_enabled and user.next_push_at is None:
+            user.next_push_at = next_daily_push_at(
+                timezone_name=user.timezone,
+                push_time=user.daily_push_time,
+                after=at,
+            )
+
+    async def initialize_missing_push_schedules(self, *, now: datetime) -> int:
+        users = list(
+            await self.session.scalars(
+                select(User).where(
+                    User.status == UserStatus.ACTIVE,
+                    User.daily_push_enabled.is_(True),
+                    User.next_push_at.is_(None),
+                )
+            )
+        )
+        for user in users:
+            user.next_push_at = next_daily_push_at(
+                timezone_name=user.timezone,
+                push_time=user.daily_push_time,
+                after=now,
+            )
+        return len(users)

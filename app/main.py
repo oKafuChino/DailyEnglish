@@ -1,11 +1,35 @@
 import asyncio
+import logging
 
 from aiogram import Bot, Dispatcher
+from aiogram.types import CallbackQuery, ErrorEvent, Message
 
+from app.bot.middlewares.rate_limit import RateLimitMiddleware
 from app.bot.routers import admin, public, user
 from app.config import get_settings
 from app.db.session import close_database
 from app.logging import configure_logging
+
+logger = logging.getLogger(__name__)
+
+
+async def handle_error(event: ErrorEvent) -> bool:
+    exception = event.exception
+    logger.error(
+        "Unhandled update error update_id=%s exception=%s",
+        event.update.update_id,
+        type(exception).__name__,
+        exc_info=(type(exception), exception, exception.__traceback__),
+    )
+    target: Message | CallbackQuery | None = event.update.callback_query or event.update.message
+    try:
+        if isinstance(target, CallbackQuery):
+            await target.answer("处理请求时发生错误，请稍后再试。", show_alert=True)
+        elif isinstance(target, Message):
+            await target.answer("处理请求时发生错误，请稍后再试。")
+    except Exception:
+        logger.warning("Unable to send generic error response update_id=%s", event.update.update_id)
+    return True
 
 
 async def main() -> None:
@@ -15,10 +39,17 @@ async def main() -> None:
 
     bot = Bot(token=settings.bot_token.get_secret_value())
     dispatcher = Dispatcher()
+    rate_limiter = RateLimitMiddleware(settings=settings)
+    dispatcher.message.middleware(rate_limiter)
+    dispatcher.callback_query.middleware(rate_limiter)
+    dispatcher.errors.register(handle_error)
     dispatcher.include_routers(admin.router, public.router, user.router)
 
     try:
-        await dispatcher.start_polling(bot)
+        await dispatcher.start_polling(
+            bot,
+            allowed_updates=dispatcher.resolve_used_update_types(),
+        )
     finally:
         await bot.session.close()
         await close_database()

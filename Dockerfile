@@ -1,20 +1,35 @@
-FROM python:3.12-slim
+# syntax=docker/dockerfile:1
+FROM python:3.12-slim AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
 WORKDIR /app
 
-RUN addgroup --system app && adduser --system --ingroup app app
+RUN python -m venv /opt/venv
 
 COPY pyproject.toml README.md ./
 COPY app ./app
-COPY migrations ./migrations
-COPY alembic.ini ./
+RUN /opt/venv/bin/pip install --no-cache-dir .
 
-RUN pip install --no-cache-dir .
+FROM python:3.12-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/opt/venv/bin:${PATH}"
+
+WORKDIR /app
+
+RUN groupadd --system --gid 10001 app \
+    && useradd --system --uid 10001 --gid app --home-dir /app --no-create-home app
+
+COPY --from=builder /opt/venv /opt/venv
+COPY --chown=app:app migrations ./migrations
+COPY --chown=app:app alembic.ini ./
 
 USER app
 
-CMD ["python", "-m", "app.main"]
+STOPSIGNAL SIGTERM
 
+CMD ["python", "-m", "app.main"]

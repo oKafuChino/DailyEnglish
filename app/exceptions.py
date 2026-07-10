@@ -22,5 +22,9 @@ class AlreadyRegisteredError(DailyEnglishError):
     pass
 
 
+class FavoriteContentNotFoundError(DailyEnglishError):
+    pass
+
+
 class UserBlockedError(DailyEnglishError):
     pass

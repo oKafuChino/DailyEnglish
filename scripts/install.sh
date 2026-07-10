@@ -28,7 +28,7 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y ca-certificates curl git openssl
 
-if ! command -v docker >/dev/null 2>&1; then
+if ! command -v docker >/dev/null 2>&1 || ! docker compose version >/dev/null 2>&1; then
   curl -fsSL https://get.docker.com | sh
 fi
 
@@ -50,8 +50,8 @@ if [[ ! -f "${INSTALL_DIR}/.env" ]]; then
   read -r -p "Telegram Bot Token: " BOT_TOKEN </dev/tty
   read -r -p "管理员 Telegram 数字 ID: " OWNER_TELEGRAM_ID </dev/tty
 
-  if [[ -z "${BOT_TOKEN}" || ! "${OWNER_TELEGRAM_ID}" =~ ^[0-9]+$ ]]; then
-    echo "Bot Token 不能为空，管理员 ID 必须是数字。"
+  if [[ ! "${BOT_TOKEN}" =~ ^[0-9]{6,15}:[A-Za-z0-9_-]{20,}$ || ! "${OWNER_TELEGRAM_ID}" =~ ^[0-9]+$ ]]; then
+    echo "Bot Token 格式无效，或管理员 ID 不是数字。"
     exit 1
   fi
 
@@ -71,7 +71,7 @@ else
   echo "检测到已有 .env，将保留现有配置。"
 fi
 
-docker compose -f "${INSTALL_DIR}/docker-compose.yml" --env-file "${INSTALL_DIR}/.env" up --build -d
+bash "${INSTALL_DIR}/scripts/deploy.sh"
 
 echo
 echo "DailyEnglish 已安装到 ${INSTALL_DIR}"

@@ -46,11 +46,13 @@ DailyEnglish Bot 希望把英语积累变成一件简单且可以长期坚持的
 - [x] 数据库模型与配置测试
 - [x] 管理员身份校验
 - [x] 邀请码生成、撤销与一次性注册流程
-- [ ] 单词和句子内容服务
-- [ ] 收藏与收藏列表
-- [ ] 每日定时推送 Worker
-- [ ] 用户设置与限流
-- [ ] 生产环境监控和备份
+- [x] 单词和句子内容服务与手动获取命令
+- [x] 收藏、取消收藏与分页收藏列表
+- [x] 每日定时推送 Worker 与失败重试
+- [ ] 用户设置
+- [x] 分级限流、日志脱敏与运行时安全校验
+- [x] Docker 健康检查、日志轮转和 PostgreSQL 备份恢复
+- [ ] 外部监控与告警
 
 ## 🏗️ 系统架构
 
@@ -130,9 +132,10 @@ sudo docker compose logs -f bot worker
 
 ```bash
 cd /opt/dailyenglish
-sudo git pull --ff-only
-sudo docker compose up --build -d
+sudo bash scripts/deploy.sh
 ```
+
+部署脚本会检查 `.env` 与 Compose 配置，在数据库运行时先创建安全备份，然后拉取最新代码、重新构建镜像、执行数据库迁移，并等待 Bot 和 Worker 通过健康检查。若存在未提交的已追踪文件修改，脚本会停止更新以避免覆盖本地改动。
 
 ## 🧩 手动部署
 
@@ -179,6 +182,68 @@ docker compose logs -f bot worker
 ```
 
 `migrate` 服务会先执行 `alembic upgrade head`，迁移成功后才启动 Bot 和 Worker。PostgreSQL 默认只在 Docker 内部网络中开放。
+
+## 🐳 Docker 运维
+
+查看容器状态、健康检查和最近日志：
+
+```bash
+cd /opt/dailyenglish
+sudo docker compose ps
+sudo docker compose logs --tail=200 bot worker postgres
+```
+
+重启应用服务：
+
+```bash
+sudo docker compose restart bot worker
+```
+
+停止或重新启动整套服务：
+
+```bash
+sudo docker compose down
+sudo docker compose up -d
+```
+
+`docker compose down` 不会删除 PostgreSQL 数据卷。不要执行 `docker compose down -v`，除非确认需要永久删除数据库。
+
+### 数据库备份
+
+```bash
+cd /opt/dailyenglish
+sudo bash scripts/backup.sh
+```
+
+备份默认保存在 `/opt/dailyenglish/backups/`，使用 PostgreSQL Custom Format，并在写入完成前进行完整性校验。默认保留 14 天，可通过环境变量调整：
+
+```bash
+sudo BACKUP_RETENTION_DAYS=30 bash scripts/backup.sh
+```
+
+建议使用 root 的 Cron 每天执行：
+
+```cron
+30 3 * * * cd /opt/dailyenglish && /usr/bin/bash scripts/backup.sh >> /var/log/dailyenglish-backup.log 2>&1
+```
+
+### 数据库恢复
+
+```bash
+cd /opt/dailyenglish
+sudo bash scripts/restore.sh backups/dailyenglish_YYYYMMDDTHHMMSSZ.dump
+```
+
+恢复脚本会先验证备份、再创建当前数据库的安全备份，然后暂停 Bot 和 Worker、原子恢复数据、执行最新迁移并重新启动服务。无人值守恢复可添加 `--yes`，但不建议在日常运维中使用。
+
+### 容器安全
+
+- Bot、Worker 和迁移容器使用固定的非 root 用户运行
+- 应用文件系统为只读，仅 `/tmp` 使用受限内存文件系统
+- 应用容器移除 Linux capabilities，并启用 `no-new-privileges`
+- Docker 日志单文件最多 10 MB，保留 3 个轮转文件
+- PostgreSQL 不映射宿主机端口，数据保存在命名卷 `dailyenglish_postgres_data`
+- Bot 和 Worker 每 30 秒检查一次数据库连接状态
 
 ## 💻 Linux 本地开发
 
@@ -236,6 +301,10 @@ ruff format --check .
 - 所有用户命令和回调都需要注册状态校验
 - 对内容请求、注册尝试和消息发送实施限流
 - 日志不得记录 Token、邀请码明文或敏感用户内容
+- 机器人仅在 Telegram 私聊中处理命令与收藏回调
+- 启动时拒绝弱邀请码密钥、默认数据库密码和格式异常的 Bot Token
+
+默认限流策略为：普通请求每分钟 30 次、内容请求每分钟 10 次、收藏回调每分钟 30 次、管理员命令每分钟 20 次、注册尝试每 5 分钟 5 次。所有阈值均可通过 `.env` 中的 `RATE_LIMIT_*` 配置调整；单机内存限流适用于默认的单 Bot 容器部署。
 
 ## 🧭 后续计划
 

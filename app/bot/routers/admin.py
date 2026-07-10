@@ -33,7 +33,7 @@ def _invite_status(
     return "可使用"
 
 
-@router.message(Command("invite"))
+@router.message(Command("invite"), flags={"rate_limit": "admin"})
 async def create_invite(message: Message, command: CommandObject) -> None:
     try:
         valid_hours = int(command.args) if command.args else 168
@@ -62,7 +62,7 @@ async def create_invite(message: Message, command: CommandObject) -> None:
     )
 
 
-@router.message(Command("invites"))
+@router.message(Command("invites"), flags={"rate_limit": "admin"})
 async def list_invites(message: Message) -> None:
     async with session_scope() as session:
         invites = await InviteRepository(session).list_recent(limit=10)
@@ -77,7 +77,7 @@ async def list_invites(message: Message) -> None:
     await message.answer("\n".join(lines))
 
 
-@router.message(Command("revoke"))
+@router.message(Command("revoke"), flags={"rate_limit": "admin"})
 async def revoke_invite(message: Message, command: CommandObject) -> None:
     try:
         invite_id = uuid.UUID(command.args or "")

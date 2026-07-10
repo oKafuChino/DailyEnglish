@@ -56,7 +56,7 @@ async def _redeem_for_message(message: Message, code: str) -> str:
     return "注册成功！现在可以使用 DailyEnglish Bot 了。"
 
 
-@router.message(CommandStart())
+@router.message(CommandStart(), flags={"rate_limit": "registration"})
 async def start(message: Message, state: FSMContext, command: CommandObject) -> None:
     if message.from_user is None:
         return
@@ -88,7 +88,7 @@ async def start(message: Message, state: FSMContext, command: CommandObject) -> 
     await message.answer("欢迎使用 DailyEnglish Bot。请直接发送管理员提供的一次性邀请码。")
 
 
-@router.message(Command("register"))
+@router.message(Command("register"), flags={"rate_limit": "registration"})
 async def register(message: Message, state: FSMContext, command: CommandObject) -> None:
     if not command.args:
         await state.set_state(Registration.waiting_for_invite)
@@ -100,7 +100,11 @@ async def register(message: Message, state: FSMContext, command: CommandObject) 
     await message.answer(response)
 
 
-@router.message(Registration.waiting_for_invite, F.text)
+@router.message(
+    Registration.waiting_for_invite,
+    F.text,
+    flags={"rate_limit": "registration"},
+)
 async def receive_invite(message: Message, state: FSMContext) -> None:
     response = await _redeem_for_message(message, message.text or "")
     if response.startswith("注册成功"):
