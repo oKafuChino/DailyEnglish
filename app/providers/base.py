@@ -1,0 +1,1 @@
+# Common content provider contract.

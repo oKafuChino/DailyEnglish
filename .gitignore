@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+
+# Tests and coverage
+tests/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+pytest-report.xml
+
+# Environment and secrets
+.env
+
+# IDE and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Runtime data
+logs/
+backups/
