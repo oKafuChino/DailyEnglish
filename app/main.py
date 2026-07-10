@@ -15,7 +15,7 @@ async def main() -> None:
 
     bot = Bot(token=settings.bot_token.get_secret_value())
     dispatcher = Dispatcher()
-    dispatcher.include_routers(public.router, user.router, admin.router)
+    dispatcher.include_routers(admin.router, public.router, user.router)
 
     try:
         await dispatcher.start_polling(bot)

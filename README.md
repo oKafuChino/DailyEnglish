@@ -44,8 +44,8 @@ DailyEnglish Bot 希望把英语积累变成一件简单且可以长期坚持的
 - [x] Alembic 初始数据库迁移
 - [x] Bot、Worker、PostgreSQL 容器编排
 - [x] 数据库模型与配置测试
-- [ ] 管理员身份校验
-- [ ] 邀请码生成与注册流程
+- [x] 管理员身份校验
+- [x] 邀请码生成、撤销与一次性注册流程
 - [ ] 单词和句子内容服务
 - [ ] 收藏与收藏列表
 - [ ] 每日定时推送 Worker
@@ -103,7 +103,38 @@ DailyEnglish/
 └── pyproject.toml
 ```
 
-## ⚡ 快速开始
+## ⚡ Ubuntu / Debian 一键部署
+
+支持 Ubuntu 22.04 / 24.04 与 Debian 12。请先在 Telegram 中找到 [@BotFather](https://t.me/BotFather)，执行 `/newbot` 创建机器人并保存 Bot Token，同时准备好管理员的 Telegram 数字用户 ID。
+
+登录服务器后执行：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/oKafuChino/DailyEnglish/main/scripts/install.sh | sudo bash
+```
+
+安装脚本会自动完成以下工作：安装 Docker 与 Git、拉取项目到 `/opt/dailyenglish`、生成数据库密码及邀请码密钥、创建 `.env`，最后构建并启动全部服务。执行过程中只会询问 Bot Token 和管理员 Telegram 数字 ID。
+
+> [!IMPORTANT]
+> 建议先打开安装脚本链接检查内容，再以 `sudo` 执行。脚本仅支持使用 `apt` 的 Ubuntu / Debian。
+
+安装完成后查看状态和日志：
+
+```bash
+cd /opt/dailyenglish
+sudo docker compose ps
+sudo docker compose logs -f bot worker
+```
+
+更新到最新版本：
+
+```bash
+cd /opt/dailyenglish
+sudo git pull --ff-only
+sudo docker compose up --build -d
+```
+
+## 🧩 手动部署
 
 ### 1. 创建 Telegram Bot
 
@@ -113,16 +144,12 @@ DailyEnglish/
 
 ### 2. 配置环境变量
 
-复制环境变量模板：
+在 Ubuntu / Debian 服务器中克隆项目并复制环境变量模板：
 
 ```bash
+git clone https://github.com/oKafuChino/DailyEnglish.git
+cd DailyEnglish
 cp .env.example .env
-```
-
-Windows PowerShell：
-
-```powershell
-Copy-Item .env.example .env
 ```
 
 至少需要填写以下配置：
@@ -138,7 +165,7 @@ INVITE_CODE_PEPPER=一个足够长的随机密钥
 > [!CAUTION]
 > `.env` 包含 Bot Token 和数据库密码，已经被 `.gitignore` 排除。不要将其提交到 GitHub，也不要在日志或截图中公开。
 
-### 3. 使用 Docker 启动
+### 3. 使用 Docker Compose 启动
 
 ```bash
 docker compose up --build -d
@@ -153,21 +180,13 @@ docker compose logs -f bot worker
 
 `migrate` 服务会先执行 `alembic upgrade head`，迁移成功后才启动 Bot 和 Worker。PostgreSQL 默认只在 Docker 内部网络中开放。
 
-## 💻 本地开发
+## 💻 Linux 本地开发
 
 项目要求 Python 3.12 或更高版本。
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
-```
-
-Windows PowerShell：
-
-```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
 ```
 
@@ -193,6 +212,7 @@ ruff format --check .
 | `/settings` | 设置推送时间、时区和推送开关 |
 | `/invite` | 管理员生成一次性邀请码 |
 | `/invites` | 管理员查看邀请码状态 |
+| `/revoke <邀请码ID>` | 管理员撤销尚未使用的邀请码 |
 
 ## 🗄️ 数据库设计
 
