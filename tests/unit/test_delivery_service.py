@@ -45,7 +45,7 @@ async def test_existing_daily_delivery_is_reused() -> None:
     service.contents = SimpleNamespace(get_random=AsyncMock())
 
     result = await service.get_or_create_daily(
-        user=SimpleNamespace(id=1),
+        user=SimpleNamespace(id=1, preferred_difficulty="B2"),
         content_type=ContentType.WORD,
         local_date=datetime(2026, 7, 12).date(),
         scheduled_for=datetime(2026, 7, 12, tzinfo=UTC),
@@ -119,6 +119,26 @@ async def test_worker_marks_successful_telegram_delivery() -> None:
     assert result.message_id == 99
     assert result.error is None
     assert result.forbidden is False
+
+
+@pytest.mark.asyncio
+async def test_worker_alerts_owner_when_failures_reach_threshold() -> None:
+    worker = DailyPushWorker(max_attempts=3, alert_failure_threshold=1, owner_telegram_id=42)
+    bot = SimpleNamespace(send_message=AsyncMock())
+
+    await worker._send_alert_if_needed(bot, failed=1, total=1)
+
+    bot.send_message.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_worker_does_not_alert_below_failure_threshold() -> None:
+    worker = DailyPushWorker(max_attempts=3, alert_failure_threshold=2, owner_telegram_id=42)
+    bot = SimpleNamespace(send_message=AsyncMock())
+
+    await worker._send_alert_if_needed(bot, failed=1, total=3)
+
+    bot.send_message.assert_not_awaited()
 
 
 @pytest.mark.asyncio

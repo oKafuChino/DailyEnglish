@@ -14,6 +14,10 @@ def test_initial_schema_contains_expected_tables() -> None:
     }
 
 
+def test_users_have_preferred_difficulty_column() -> None:
+    assert "preferred_difficulty" in Base.metadata.tables["users"].columns
+
+
 def test_favorites_prevent_duplicate_user_content_pairs() -> None:
     constraints = Base.metadata.tables["favorites"].constraints
     names = {item.name for item in constraints if isinstance(item, UniqueConstraint)}

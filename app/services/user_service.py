@@ -9,6 +9,8 @@ from app.db.repositories.users import UserRepository
 from app.domain.scheduling import next_daily_push_at
 from app.domain.time import UTC
 
+ALLOWED_DIFFICULTIES = {"mixed", "B1", "B2", "C1"}
+
 
 class UserService:
     def __init__(self, session: AsyncSession, *, settings: Settings | None = None) -> None:
@@ -76,6 +78,21 @@ class UserService:
         user = await self._get_for_update(user_id)
         user.daily_push_enabled = not user.daily_push_enabled
         self._reschedule(user, now=now)
+        return user
+
+    async def set_preferred_difficulty(
+        self,
+        *,
+        user_id: int,
+        difficulty: str,
+    ) -> User:
+        normalized = difficulty.strip().upper()
+        if normalized == "MIXED":
+            normalized = "mixed"
+        if normalized not in ALLOWED_DIFFICULTIES:
+            raise ValueError("Unsupported difficulty")
+        user = await self._get_for_update(user_id)
+        user.preferred_difficulty = normalized
         return user
 
     async def _get_for_update(self, user_id: int) -> User:

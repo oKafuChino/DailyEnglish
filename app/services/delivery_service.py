@@ -28,7 +28,10 @@ class DeliveryService:
         )
         if delivery is not None:
             return delivery
-        content = await self.contents.get_random(content_type)
+        content = await self.contents.get_random(
+            content_type,
+            difficulty=user.preferred_difficulty,
+        )
         return await self.deliveries.create_daily(
             user=user,
             content=content,

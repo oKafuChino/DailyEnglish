@@ -24,6 +24,8 @@ async def main() -> None:
     worker = DailyPushWorker(
         retry_minutes=settings.delivery_retry_minutes,
         max_attempts=settings.delivery_max_attempts,
+        alert_failure_threshold=settings.alert_failure_threshold,
+        owner_telegram_id=settings.owner_telegram_id,
     )
 
     try:

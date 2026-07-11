@@ -34,12 +34,14 @@ def parse_push_time(value: str) -> time:
 
 def format_settings(user: User) -> str:
     enabled = "已开启" if user.daily_push_enabled else "已关闭"
+    difficulty = "混合" if user.preferred_difficulty == "mixed" else user.preferred_difficulty
     lines = [
         "⚙️ <b>推送设置</b>",
         "",
         f"状态：{enabled}",
         f"时间：{user.daily_push_time:%H:%M}",
         f"时区：{escape(user.timezone)}",
+        f"难度：{escape(difficulty)}",
     ]
     if user.next_push_at is not None and user.daily_push_enabled:
         local_next = user.next_push_at.astimezone(ZoneInfo(user.timezone))
@@ -51,7 +53,10 @@ async def _send_settings(message: Message, user: User) -> None:
     await message.answer(
         format_settings(user),
         parse_mode="HTML",
-        reply_markup=settings_keyboard(push_enabled=user.daily_push_enabled),
+        reply_markup=settings_keyboard(
+            push_enabled=user.daily_push_enabled,
+            preferred_difficulty=user.preferred_difficulty,
+        ),
     )
 
 
@@ -91,6 +96,30 @@ async def settings_action(
             )
         await callback.answer()
         return
+    if callback_data.action == "difficulty":
+        if callback_data.value is None:
+            await callback.answer("请选择难度", show_alert=True)
+            return
+        try:
+            async with session_scope() as session:
+                user = await UserService(session).set_preferred_difficulty(
+                    user_id=current_user.id,
+                    difficulty=callback_data.value,
+                )
+        except ValueError:
+            await callback.answer("不支持的难度", show_alert=True)
+            return
+        if callback.message:
+            await callback.message.edit_text(
+                format_settings(user),
+                parse_mode="HTML",
+                reply_markup=settings_keyboard(
+                    push_enabled=user.daily_push_enabled,
+                    preferred_difficulty=user.preferred_difficulty,
+                ),
+            )
+        await callback.answer("难度偏好已更新")
+        return
     if callback_data.action != "toggle":
         await callback.answer("未知设置操作", show_alert=True)
         return
@@ -101,7 +130,10 @@ async def settings_action(
         await callback.message.edit_text(
             format_settings(user),
             parse_mode="HTML",
-            reply_markup=settings_keyboard(push_enabled=user.daily_push_enabled),
+            reply_markup=settings_keyboard(
+                push_enabled=user.daily_push_enabled,
+                preferred_difficulty=user.preferred_difficulty,
+            ),
         )
     await callback.answer("推送已开启" if user.daily_push_enabled else "推送已关闭")
 

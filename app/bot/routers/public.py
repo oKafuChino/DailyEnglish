@@ -59,6 +59,7 @@ def build_help_text(*, is_registered: bool, is_admin: bool) -> str:
                 "/invite [小时] - 生成一次性邀请码",
                 "/invites - 查看最近 10 个邀请码",
                 "/revoke <邀请码ID> - 撤销未使用的邀请码",
+                "/stats - 查看机器人运行统计",
             ]
         )
     return "\n".join(lines)

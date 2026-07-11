@@ -5,12 +5,15 @@ from aiogram import Router
 from aiogram.filters import Command
 from aiogram.filters.command import CommandObject
 from aiogram.types import Message
+from sqlalchemy import func, select
 
 from app.bot.filters.admin import AdminFilter
 from app.bot.filters.private_chat import PrivateChatFilter
 from app.config import get_settings
+from app.db.models import ContentItem, Delivery, Favorite, InviteCode, User
 from app.db.repositories.invites import InviteRepository
 from app.db.session import session_scope
+from app.domain.enums import ContentType, DeliveryStatus, UserStatus
 from app.domain.time import UTC
 from app.exceptions import InvalidInviteCodeError, InviteCodeRedeemedError
 from app.services.invite_service import InviteService
@@ -75,6 +78,79 @@ async def list_invites(message: Message) -> None:
         status = _invite_status(invite.redeemed_at, invite.revoked_at, invite.expires_at)
         lines.append(f"\n{invite.id}\n状态：{status}｜过期：{invite.expires_at:%Y-%m-%d %H:%M UTC}")
     await message.answer("\n".join(lines))
+
+
+@router.message(Command("stats"), flags={"rate_limit": "admin"})
+async def stats(message: Message) -> None:
+    async with session_scope() as session:
+        active_users = int(
+            await session.scalar(
+                select(func.count(User.id)).where(User.status == UserStatus.ACTIVE)
+            )
+            or 0
+        )
+        pending_users = int(
+            await session.scalar(
+                select(func.count(User.id)).where(User.status == UserStatus.PENDING)
+            )
+            or 0
+        )
+        push_enabled = int(
+            await session.scalar(
+                select(func.count(User.id)).where(
+                    User.status == UserStatus.ACTIVE,
+                    User.daily_push_enabled.is_(True),
+                )
+            )
+            or 0
+        )
+        words = int(
+            await session.scalar(
+                select(func.count(ContentItem.id)).where(
+                    ContentItem.content_type == ContentType.WORD
+                )
+            )
+            or 0
+        )
+        sentences = int(
+            await session.scalar(
+                select(func.count(ContentItem.id)).where(
+                    ContentItem.content_type == ContentType.SENTENCE
+                )
+            )
+            or 0
+        )
+        favorites = int(await session.scalar(select(func.count(Favorite.id))) or 0)
+        sent_deliveries = int(
+            await session.scalar(
+                select(func.count(Delivery.id)).where(Delivery.status == DeliveryStatus.SENT)
+            )
+            or 0
+        )
+        failed_deliveries = int(
+            await session.scalar(
+                select(func.count(Delivery.id)).where(Delivery.status == DeliveryStatus.FAILED)
+            )
+            or 0
+        )
+        available_invites = int(
+            await session.scalar(
+                select(func.count(InviteCode.id)).where(
+                    InviteCode.redeemed_at.is_(None),
+                    InviteCode.revoked_at.is_(None),
+                    InviteCode.expires_at > datetime.now(UTC),
+                )
+            )
+            or 0
+        )
+
+    await message.answer(
+        "📊 DailyEnglish 统计\n\n"
+        f"用户：活跃 {active_users}｜待注册 {pending_users}｜开启推送 {push_enabled}\n"
+        f"内容：单词 {words}｜句子 {sentences}｜收藏 {favorites}\n"
+        f"投递：成功 {sent_deliveries}｜失败待重试 {failed_deliveries}\n"
+        f"邀请码：可使用 {available_invites}"
+    )
 
 
 @router.message(Command("revoke"), flags={"rate_limit": "admin"})

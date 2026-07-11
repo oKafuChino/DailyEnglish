@@ -16,6 +16,7 @@ def make_user(**overrides):
         "daily_push_enabled": True,
         "daily_push_time": time(8),
         "timezone": "Asia/Shanghai",
+        "preferred_difficulty": "mixed",
         "next_push_at": datetime(2026, 7, 12, 0, tzinfo=UTC),
     }
     values.update(overrides)
@@ -66,11 +67,32 @@ async def test_timezone_change_validates_and_reschedules() -> None:
 def test_settings_panel_and_callback_data_are_complete() -> None:
     user = make_user()
     text = format_settings(user)
-    keyboard = settings_keyboard(push_enabled=True)
+    keyboard = settings_keyboard(push_enabled=True, preferred_difficulty="B2")
 
     assert "已开启" in text
     assert "Asia/Shanghai" in text
+    assert "难度：混合" in text
     packed = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert SettingsCallback(action="toggle").pack() in packed
     assert SettingsCallback(action="time").pack() in packed
     assert SettingsCallback(action="timezone").pack() in packed
+    assert SettingsCallback(action="difficulty", value="B1").pack() in packed
+    labels = [button.text for row in keyboard.inline_keyboard for button in row]
+    assert "🎚️ 难度：B2" in labels
+    assert "✅ B2" in labels
+
+
+@pytest.mark.asyncio
+async def test_set_preferred_difficulty_validates_values() -> None:
+    user = make_user()
+    service = UserService(SimpleNamespace())
+    service.users = SimpleNamespace(get_by_id_for_update=AsyncMock(return_value=user))
+
+    await service.set_preferred_difficulty(user_id=user.id, difficulty="b2")
+    assert user.preferred_difficulty == "B2"
+
+    await service.set_preferred_difficulty(user_id=user.id, difficulty="mixed")
+    assert user.preferred_difficulty == "mixed"
+
+    with pytest.raises(ValueError):
+        await service.set_preferred_difficulty(user_id=user.id, difficulty="A1")

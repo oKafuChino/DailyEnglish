@@ -33,6 +33,26 @@ async def test_get_random_returns_existing_approved_content() -> None:
 
 
 @pytest.mark.asyncio
+async def test_get_random_uses_requested_difficulty_and_falls_back() -> None:
+    content = SimpleNamespace(text_en="resilient")
+    service = ContentService(SimpleNamespace())
+    service.contents = SimpleNamespace(
+        get_random_approved=AsyncMock(side_effect=[None, content]),
+        add_approved_seeds=AsyncMock(),
+    )
+    service.fallback_provider = SimpleNamespace(list_content=AsyncMock())
+
+    result = await service.get_random(ContentType.WORD, difficulty="B2")
+
+    assert result is content
+    assert service.contents.get_random_approved.await_args_list == [
+        ((ContentType.WORD,), {"difficulty": "B2"}),
+        ((ContentType.WORD,),),
+    ]
+    service.fallback_provider.list_content.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_get_random_seeds_database_when_content_is_empty() -> None:
     content = SimpleNamespace(text_en="resilient")
     seeds = [SimpleNamespace(text_en="resilient")]

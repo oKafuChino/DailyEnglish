@@ -46,10 +46,19 @@ class ClaimedUser:
 
 
 class DailyPushWorker:
-    def __init__(self, *, retry_minutes: int = 5, max_attempts: int = 3) -> None:
+    def __init__(
+        self,
+        *,
+        retry_minutes: int = 5,
+        max_attempts: int = 3,
+        alert_failure_threshold: int = 3,
+        owner_telegram_id: int | None = None,
+    ) -> None:
         self.retry_delay = timedelta(minutes=retry_minutes)
         self.claim_timeout = max(self.retry_delay, timedelta(minutes=10))
         self.max_attempts = max_attempts
+        self.alert_failure_threshold = alert_failure_threshold
+        self.owner_telegram_id = owner_telegram_id
 
     async def run_once(self, bot: Bot, *, now: datetime | None = None) -> int:
         now = now or datetime.now(UTC)
@@ -60,6 +69,7 @@ class DailyPushWorker:
 
         jobs, users = await self._claim_due_pushes(now=now)
         disabled_users: set[int] = set()
+        alert_failures = 0
         for job in jobs:
             if job.user_id in disabled_users:
                 result = PushResult(
@@ -69,10 +79,13 @@ class DailyPushWorker:
             else:
                 result = await self._send_prepared(bot, job)
             await self._record_result(job, result)
+            if result.error is not None and not result.forbidden:
+                alert_failures += 1
             if result.forbidden:
                 disabled_users.add(job.user_id)
         for claimed_user in users:
             await self._finalize_user(claimed_user, now=datetime.now(UTC))
+        await self._send_alert_if_needed(bot, failed=alert_failures, total=len(jobs))
         return len(users)
 
     async def _claim_due_pushes(
@@ -196,3 +209,20 @@ class DailyPushWorker:
                 )
             else:
                 user.next_push_at = now + self.retry_delay
+
+    async def _send_alert_if_needed(self, bot: Bot, *, failed: int, total: int) -> None:
+        if self.alert_failure_threshold <= 0 or self.owner_telegram_id is None:
+            return
+        if failed < self.alert_failure_threshold:
+            return
+        try:
+            await bot.send_message(
+                chat_id=self.owner_telegram_id,
+                text=(
+                    "⚠️ DailyEnglish 推送告警\n\n"
+                    f"本轮推送失败 {failed}/{total} 条，已达到阈值 "
+                    f"{self.alert_failure_threshold}。请检查 Worker 日志和 Telegram 网络状态。"
+                ),
+            )
+        except Exception:
+            logger.exception("Failed to send worker alert to owner")

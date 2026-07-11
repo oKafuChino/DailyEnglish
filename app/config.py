@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     worker_poll_interval_seconds: int = Field(default=60, ge=5, le=3600)
     delivery_retry_minutes: int = Field(default=5, ge=1, le=1440)
     delivery_max_attempts: int = Field(default=3, ge=1, le=20)
+    alert_failure_threshold: int = Field(default=3, ge=0, le=1000)
     rate_limit_window_seconds: int = Field(default=60, ge=10, le=3600)
     rate_limit_default_requests: int = Field(default=30, ge=1, le=1000)
     rate_limit_content_requests: int = Field(default=10, ge=1, le=1000)
