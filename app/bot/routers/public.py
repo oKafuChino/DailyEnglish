@@ -39,6 +39,7 @@ def build_help_text(*, is_registered: bool, is_admin: bool) -> str:
                 "/sentence - 获取一句英语好句",
                 "/daily - 获取今日单词和句子",
                 "/saved [页码] - 查看收藏内容",
+                "/review - 复习收藏单词",
                 "/export_words - 导出收藏单词 Excel",
                 "/setting - 设置推送时间、时区和开关",
                 "/cancel - 取消正在进行的设置操作",

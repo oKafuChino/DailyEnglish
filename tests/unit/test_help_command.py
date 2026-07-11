@@ -15,6 +15,7 @@ def test_help_for_registered_user_shows_learning_commands() -> None:
 
     assert "/word" in text
     assert "/saved [页码]" in text
+    assert "/review" in text
     assert "/setting" in text
     assert "/register" not in text
     assert "/invite" not in text

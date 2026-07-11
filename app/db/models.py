@@ -213,11 +213,22 @@ class Favorite(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    reviewed_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    review_success_count: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
+    )
+    review_fail_count: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
+    )
+    review_last_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     user: Mapped[User] = relationship(back_populates="favorites")
     content: Mapped[ContentItem] = relationship(back_populates="favorites")
 
-    __table_args__ = (UniqueConstraint("user_id", "content_id", name="uq_favorites_user_content"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "content_id", name="uq_favorites_user_content"),
+        Index("ix_favorites_review_selection", "user_id", "reviewed_until"),
+    )
 
 
 class Delivery(TimestampMixin, Base):

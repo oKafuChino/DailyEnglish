@@ -6,7 +6,9 @@
 - `/register <邀请码>`：完成一次性注册。
 - `/word`、`/sentence`、`/daily`：获取学习内容。
 - `/saved [页码]`：查看收藏。
-- `/setting`、`/settings`：调整推送时间、时区和推送开关。
+- `/review`：从收藏夹随机抽取最多 10 个单词复习，包含中文四选一和英文拼写两种题型。
+- `/export_words`：导出收藏单词 Excel 表格。
+- `/setting`、`/settings`：调整推送时间、时区、推送开关和推送难度。
 - `/cancel`：取消正在进行的设置输入。
 
 管理员命令：

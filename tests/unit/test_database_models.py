@@ -25,6 +25,15 @@ def test_favorites_prevent_duplicate_user_content_pairs() -> None:
     assert "uq_favorites_user_content" in names
 
 
+def test_favorites_track_review_state() -> None:
+    columns = Base.metadata.tables["favorites"].columns
+
+    assert "reviewed_until" in columns
+    assert "review_success_count" in columns
+    assert "review_fail_count" in columns
+    assert "review_last_at" in columns
+
+
 def test_daily_deliveries_have_idempotency_and_date_constraints() -> None:
     constraints = Base.metadata.tables["deliveries"].constraints
     unique_names = {item.name for item in constraints if isinstance(item, UniqueConstraint)}

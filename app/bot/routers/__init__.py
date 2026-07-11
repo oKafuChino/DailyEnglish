@@ -1,3 +1,3 @@
-from app.bot.routers import admin, public, settings, user
+from app.bot.routers import admin, public, review, settings, user
 
-__all__ = ["admin", "public", "settings", "user"]
+__all__ = ["admin", "public", "review", "settings", "user"]
