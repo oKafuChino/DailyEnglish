@@ -5,7 +5,7 @@ import re
 from collections import Counter
 from pathlib import Path
 
-TARGET_COUNTS = {"B1": 600, "B2": 800, "C1": 600}
+TARGET_COUNTS = {"B1": 2400, "B2": 2400, "C1": 3200}
 WORD_PATTERN = re.compile(r"[a-z]+(?:-[a-z]+)?")
 CHINESE_PATTERN = re.compile(r"[\u3400-\u9fff]")
 LEMMA_PATTERN = re.compile(r"(?:^|/)0:([^/]+)")
@@ -42,16 +42,16 @@ POS_LABELS = (
 def classify(tags: set[str], best_rank: int) -> str | None:
     # ECDICT exam tags overlap heavily, so frequency bands keep common words out
     # of advanced levels. These are project-specific approximations, not CEFR labels.
-    if "cet4" in tags and not {"toefl", "gre"} & tags and 400 <= best_rank <= 8_000:
+    if {"cet4", "gk", "ky"} & tags and not {"toefl", "gre"} & tags and 200 <= best_rank <= 20_000:
         return "B1"
     if (
-        {"cet6", "ielts"} & tags
+        {"cet6", "ielts", "toefl"} & tags
         and "cet4" not in tags
         and "gre" not in tags
-        and 1_500 <= best_rank <= 20_000
+        and 800 <= best_rank <= 50_000
     ):
         return "B2"
-    if {"toefl", "gre"} & tags and "cet4" not in tags and 5_000 <= best_rank <= 30_000:
+    if {"toefl", "gre"} & tags and "cet4" not in tags and 2_500 <= best_rank <= 80_000:
         return "C1"
     return None
 

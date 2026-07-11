@@ -50,7 +50,7 @@ DailyEnglish Bot 希望把英语积累变成一件简单且可以长期坚持的
 - [x] 管理员身份校验
 - [x] 邀请码生成、撤销与一次性注册流程
 - [x] 单词和句子内容服务与手动获取命令
-- [x] 2000 词本地分级词库（B1 600 / B2 800 / C1 600）
+- [x] 8000 词本地分级词库（B1 2400 / B2 2400 / C1 3200）
 - [x] 300 句原创双语句子库（B1 / B2 / C1 各 100 句）
 - [x] 收藏、取消收藏与分页收藏列表
 - [x] 每日定时推送 Worker 与失败重试
@@ -289,18 +289,24 @@ ruff format --check .
 
 ## 📚 单词内容库
 
-项目内置 2000 个英语单词，随应用包一同部署，不依赖运行时网络请求。词库按项目学习难度规则划分为 B1 600 个、B2 800 个和 C1 600 个；每条记录包含英文、中文释义、音标、词性、难度和来源元数据。
+项目内置 8000 个英语单词，随应用包一同部署，不依赖运行时网络请求。词库按项目学习难度规则划分为 B1 2400 个、B2 2400 个和 C1 3200 个；每条记录包含英文、中文释义、音标、词性、英文例句、难度和来源元数据。
 
 原始词典数据来自 [ECDICT](https://github.com/skywind3000/ECDICT)，遵循 MIT License，许可文本见 `app/data/ECDICT_LICENSE`。B1、B2、C1 由本项目结合 ECDICT 考试标签与词频排名近似映射，仅用于内容分层，并非官方 CEFR 认证结果。
 
-维护者可使用原始 `ecdict.csv` 重新生成词库：
+维护者可在 Ubuntu / Debian VPS 上一键下载 ECDICT 原始数据并重新生成本地词库：
+
+```bash
+bash scripts/update_word_library.sh
+```
+
+也可以使用已经下载好的原始 `ecdict.csv` 手动生成：
 
 ```bash
 python scripts/build_word_library.py /path/to/ecdict.csv app/data/words.jsonl
 python scripts/fill_word_examples.py --mode offline
 ```
 
-`build_word_library.py` 负责重建词条、释义、音标和分级；`fill_word_examples.py` 负责为单词补充英文例句。默认 `offline` 模式不依赖网络，会生成项目原创模板例句；如需尝试在线词典例句，可使用 `--mode api`。
+`build_word_library.py` 负责重建词条、释义、音标和分级；`fill_word_examples.py` 负责为单词补充英文例句。默认 `offline` 模式不依赖网络，会生成项目原创模板例句；如需尝试在线词典例句，可使用 `--mode api`。不建议在 Bot 运行时实时依赖外部词典 API 批量取词，因为免费 API 往往存在限流、字段不稳定、中文释义不足和网络失败风险；更推荐定期离线重建 `words.jsonl`，再通过部署流程同步到数据库。
 
 项目还内置 300 条原创双语句子，B1、B2、C1 各 100 条。句子标记为 `DailyEnglish Original`，可通过以下命令重复生成：
 
