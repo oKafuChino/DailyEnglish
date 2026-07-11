@@ -28,3 +28,4 @@ def test_help_for_admin_includes_user_and_admin_commands() -> None:
     assert "/invite [小时]" in text
     assert "/revoke <邀请码ID>" in text
     assert "/stats" in text
+    assert "/update" in text

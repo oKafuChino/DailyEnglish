@@ -61,6 +61,7 @@ def build_help_text(*, is_registered: bool, is_admin: bool) -> str:
                 "/invites - 查看最近 10 个邀请码",
                 "/revoke <邀请码ID> - 撤销未使用的邀请码",
                 "/stats - 查看机器人运行统计",
+                "/update - 执行管理员配置的远程更新命令",
             ]
         )
     return "\n".join(lines)
@@ -166,6 +167,6 @@ async def receive_invite(message: Message, state: FSMContext) -> None:
     await message.answer(response)
 
 
-@router.message(Command("invite", "invites", "revoke"))
+@router.message(Command("invite", "invites", "revoke", "stats", "update"))
 async def reject_admin_command(message: Message) -> None:
     await message.answer("该命令仅限管理员使用。")

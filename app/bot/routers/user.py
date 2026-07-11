@@ -20,6 +20,7 @@ from app.exceptions import FavoriteContentNotFoundError
 from app.services.content_service import ContentService, ContentUnavailableError
 from app.services.excel_export import build_favorite_words_xlsx
 from app.services.favorite_service import FavoriteService
+from app.services.user_service import parse_preferred_difficulties
 
 router = Router(name="user")
 router.message.filter(PrivateChatFilter())
@@ -28,18 +29,22 @@ router.message.middleware(RegistrationMiddleware())
 router.callback_query.middleware(RegistrationMiddleware())
 
 
-async def _get_content(kind: str) -> ContentItem:
+async def _get_content(kind: str, *, preferred_difficulty: str | None = None) -> ContentItem:
+    difficulties = parse_preferred_difficulties(preferred_difficulty)
     async with session_scope() as session:
         service = ContentService(session)
         if kind == "word":
-            return await service.get_word()
-        return await service.get_sentence()
+            return await service.get_word(difficulties=difficulties)
+        return await service.get_sentence(difficulties=difficulties)
 
 
 @router.message(Command("word"), flags={"rate_limit": "content"})
-async def word(message: Message) -> None:
+async def word(message: Message, current_user: User) -> None:
     try:
-        content = await _get_content("word")
+        content = await _get_content(
+            "word",
+            preferred_difficulty=current_user.preferred_difficulty,
+        )
     except ContentUnavailableError:
         await message.answer("暂时没有可用的单词，请稍后再试。")
         return
@@ -51,9 +56,12 @@ async def word(message: Message) -> None:
 
 
 @router.message(Command("sentence"), flags={"rate_limit": "content"})
-async def sentence(message: Message) -> None:
+async def sentence(message: Message, current_user: User) -> None:
     try:
-        content = await _get_content("sentence")
+        content = await _get_content(
+            "sentence",
+            preferred_difficulty=current_user.preferred_difficulty,
+        )
     except ContentUnavailableError:
         await message.answer("暂时没有可用的句子，请稍后再试。")
         return
@@ -65,12 +73,13 @@ async def sentence(message: Message) -> None:
 
 
 @router.message(Command("daily"), flags={"rate_limit": "content"})
-async def daily(message: Message) -> None:
+async def daily(message: Message, current_user: User) -> None:
     try:
         async with session_scope() as session:
             service = ContentService(session)
-            word_content = await service.get_word()
-            sentence_content = await service.get_sentence()
+            difficulties = parse_preferred_difficulties(current_user.preferred_difficulty)
+            word_content = await service.get_word(difficulties=difficulties)
+            sentence_content = await service.get_sentence(difficulties=difficulties)
     except ContentUnavailableError:
         await message.answer("今日内容暂时不可用，请稍后再试。")
         return

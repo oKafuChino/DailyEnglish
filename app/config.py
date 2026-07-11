@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     rate_limit_admin_requests: int = Field(default=20, ge=1, le=1000)
     rate_limit_registration_requests: int = Field(default=5, ge=1, le=100)
     rate_limit_registration_window_seconds: int = Field(default=300, ge=30, le=86400)
+    admin_update_command: str = ""
+    admin_update_timeout_seconds: int = Field(default=600, ge=30, le=3600)
     dictionary_api_key: SecretStr = SecretStr("")
     llm_api_key: SecretStr = SecretStr("")
 

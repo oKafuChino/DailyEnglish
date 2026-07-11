@@ -91,14 +91,6 @@ class ContentService:
         # Transaction-level advisory locks are released automatically on commit/rollback.
         return None
 
-    async def sync_packaged_content_unconditional(self) -> int:
-        total = 0
-        for content_type in (ContentType.WORD, ContentType.SENTENCE):
-            seeds = await self.fallback_provider.list_content(content_type)
-            await self.contents.add_approved_seeds(seeds)
-            total += len(seeds)
-        return total
-
     async def get_word(self, *, difficulties: list[str] | str | None = None) -> ContentItem:
         return await self.get_random(ContentType.WORD, difficulties=difficulties)
 

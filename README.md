@@ -170,6 +170,17 @@ DATABASE_URL=postgresql+asyncpg://dailyenglish:数据库密码@postgres:5432/dai
 INVITE_CODE_PEPPER=一个足够长的随机密钥
 ```
 
+如需允许管理员通过 Bot 触发远程更新，可在可信 VPS 上额外配置：
+
+```env
+ADMIN_UPDATE_COMMAND=cd /opt/dailyenglish && sudo bash scripts/deploy.sh
+ADMIN_UPDATE_TIMEOUT_SECONDS=600
+```
+
+`ADMIN_UPDATE_COMMAND` 为空时 `/update` 不会执行任何系统命令。启用前请确认运行 Bot 的用户具备执行部署脚本所需权限，并且该命令不会要求交互式输入。
+
+如果 Bot 运行在 Docker 容器内，容器默认无法直接控制宿主机的 Docker Compose。要使用 `/update`，请改为配置一个你自行准备的安全 wrapper，例如只暴露固定部署脚本、使用受限 sudo 规则或宿主机侧 webhook；不要把 Docker socket 随意挂进 Bot 容器。
+
 > [!CAUTION]
 > `.env` 包含 Bot Token 和数据库密码，已经被 `.gitignore` 排除。不要将其提交到 GitHub，也不要在日志或截图中公开。
 
@@ -286,6 +297,7 @@ ruff format --check .
 | `/invites` | 管理员查看邀请码状态 |
 | `/revoke <邀请码ID>` | 管理员撤销尚未使用的邀请码 |
 | `/stats` | 管理员查看用户、内容、收藏、投递和邀请码统计 |
+| `/update` | 管理员执行已配置的远程更新命令，默认关闭 |
 
 ## 📚 单词内容库
 
@@ -332,6 +344,7 @@ Bot 和 Worker 每次启动时都会幂等同步包内内容库。更新已有 V
 ## 🔒 安全原则
 
 - 管理员仅通过 Telegram 数字用户 ID 识别
+- `/update` 远程更新默认关闭，只有显式配置 `ADMIN_UPDATE_COMMAND` 后才可用；不要把任意用户可控内容拼入该命令
 - 一次性邀请码必须在数据库事务中原子兑换
 - Bot Token、数据库密码和邀请码密钥只从环境变量读取
 - PostgreSQL 不直接暴露到公网

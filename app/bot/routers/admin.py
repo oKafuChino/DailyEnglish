@@ -1,5 +1,7 @@
+import asyncio
 import uuid
 from datetime import datetime, timedelta
+from html import escape
 
 from aiogram import Router
 from aiogram.filters import Command
@@ -16,10 +18,12 @@ from app.db.session import session_scope
 from app.domain.enums import ContentType, DeliveryStatus, UserStatus
 from app.domain.time import UTC
 from app.exceptions import InvalidInviteCodeError, InviteCodeRedeemedError
+from app.services.admin_update_service import AdminUpdateService, truncate_output
 from app.services.invite_service import InviteService
 
 router = Router(name="admin")
 router.message.filter(PrivateChatFilter(), AdminFilter())
+_update_lock = asyncio.Lock()
 
 
 def _invite_status(
@@ -150,6 +154,46 @@ async def stats(message: Message) -> None:
         f"内容：单词 {words}｜句子 {sentences}｜收藏 {favorites}\n"
         f"投递：成功 {sent_deliveries}｜失败待重试 {failed_deliveries}\n"
         f"邀请码：可使用 {available_invites}"
+    )
+
+
+@router.message(Command("update"), flags={"rate_limit": "admin"})
+async def update_bot(message: Message) -> None:
+    settings = get_settings()
+    if not settings.admin_update_command.strip():
+        await message.answer(
+            "远程更新尚未启用。\n\n"
+            "请先在 .env 中配置 ADMIN_UPDATE_COMMAND，例如：\n"
+            "ADMIN_UPDATE_COMMAND=cd /opt/dailyenglish && sudo bash scripts/deploy.sh"
+        )
+        return
+    if _update_lock.locked():
+        await message.answer("已有一个更新任务正在执行，请稍后再试。")
+        return
+
+    await message.answer("已收到更新指令，开始执行远程更新……")
+    async with _update_lock:
+        result = await AdminUpdateService(
+            command=settings.admin_update_command,
+            timeout_seconds=settings.admin_update_timeout_seconds,
+        ).run()
+
+    output = escape(truncate_output(result.output) or "无输出")
+    if result.timed_out:
+        await message.answer(
+            f"更新命令超时，已尝试终止。\n退出码：{result.return_code}\n\n<pre>{output}</pre>",
+            parse_mode="HTML",
+        )
+        return
+    if result.succeeded:
+        await message.answer(
+            f"更新命令执行完成。\n\n<pre>{output}</pre>",
+            parse_mode="HTML",
+        )
+        return
+    await message.answer(
+        f"更新命令执行失败。\n退出码：{result.return_code}\n\n<pre>{output}</pre>",
+        parse_mode="HTML",
     )
 
 
