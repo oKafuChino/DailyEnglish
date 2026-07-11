@@ -47,6 +47,7 @@ DailyEnglish Bot 希望把英语积累变成一件简单且可以长期坚持的
 - [x] 管理员身份校验
 - [x] 邀请码生成、撤销与一次性注册流程
 - [x] 单词和句子内容服务与手动获取命令
+- [x] 2000 词本地分级词库（B1 600 / B2 800 / C1 600）
 - [x] 收藏、取消收藏与分页收藏列表
 - [x] 每日定时推送 Worker 与失败重试
 - [x] 用户推送时间、时区与开关设置
@@ -269,6 +270,7 @@ ruff format --check .
 | 命令 | 说明 |
 | --- | --- |
 | `/start` | 启动机器人或通过邀请链接注册 |
+| `/help` | 查看当前账号可用的指令 |
 | `/register <邀请码>` | 使用一次性邀请码注册 |
 | `/word` | 获取一个英语单词 |
 | `/sentence` | 获取一句英语好句 |
@@ -278,6 +280,18 @@ ruff format --check .
 | `/invite` | 管理员生成一次性邀请码 |
 | `/invites` | 管理员查看邀请码状态 |
 | `/revoke <邀请码ID>` | 管理员撤销尚未使用的邀请码 |
+
+## 📚 单词内容库
+
+项目内置 2000 个英语单词，随应用包一同部署，不依赖运行时网络请求。词库按项目学习难度规则划分为 B1 600 个、B2 800 个和 C1 600 个；每条记录包含英文、中文释义、音标、词性、难度和来源元数据。
+
+原始词典数据来自 [ECDICT](https://github.com/skywind3000/ECDICT)，遵循 MIT License，许可文本见 `app/data/ECDICT_LICENSE`。B1、B2、C1 由本项目结合 ECDICT 考试标签与词频排名近似映射，仅用于内容分层，并非官方 CEFR 认证结果。
+
+维护者可使用原始 `ecdict.csv` 重新生成词库：
+
+```bash
+python scripts/build_word_library.py /path/to/ecdict.csv app/data/words.jsonl
+```
 
 ## 🗄️ 数据库设计
 

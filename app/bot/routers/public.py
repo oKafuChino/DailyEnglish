@@ -25,6 +25,58 @@ router = Router(name="public")
 router.message.filter(PrivateChatFilter())
 
 
+def build_help_text(*, is_registered: bool, is_admin: bool) -> str:
+    lines = [
+        "📚 DailyEnglish Bot 指令帮助",
+        "",
+        "/start - 启动机器人",
+        "/help - 查看指令帮助",
+    ]
+    if is_registered or is_admin:
+        lines.extend(
+            [
+                "/word - 获取一个英语单词",
+                "/sentence - 获取一句英语好句",
+                "/daily - 获取今日单词和句子",
+                "/saved [页码] - 查看收藏内容",
+                "/setting - 设置推送时间、时区和开关",
+                "/cancel - 取消正在进行的设置操作",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "/register <邀请码> - 使用一次性邀请码注册",
+                "",
+                "完成注册后即可使用学习、收藏和推送设置功能。",
+            ]
+        )
+    if is_admin:
+        lines.extend(
+            [
+                "",
+                "👑 管理员指令",
+                "/invite [小时] - 生成一次性邀请码",
+                "/invites - 查看最近 10 个邀请码",
+                "/revoke <邀请码ID> - 撤销未使用的邀请码",
+            ]
+        )
+    return "\n".join(lines)
+
+
+@router.message(Command("help"))
+async def help_command(message: Message) -> None:
+    if message.from_user is None:
+        return
+    is_admin = message.from_user.id == get_settings().owner_telegram_id
+    is_registered = is_admin
+    if not is_admin:
+        async with session_scope() as session:
+            user = await UserRepository(session).get_by_telegram_id(message.from_user.id)
+        is_registered = user is not None and user.status == UserStatus.ACTIVE
+    await message.answer(build_help_text(is_registered=is_registered, is_admin=is_admin))
+
+
 async def _redeem_for_message(message: Message, code: str) -> str:
     if message.from_user is None:
         return "无法读取 Telegram 用户信息。"
@@ -75,7 +127,7 @@ async def start(message: Message, state: FSMContext, command: CommandObject) -> 
         user = await UserRepository(session).get_by_telegram_id(message.from_user.id)
     if user is not None and user.status == UserStatus.ACTIVE:
         await state.clear()
-        await message.answer("欢迎回来，你已经完成注册。")
+        await message.answer("欢迎回来，你已经完成注册。发送 /help 查看可用指令。")
         return
     if command.args:
         response = await _redeem_for_message(message, command.args)

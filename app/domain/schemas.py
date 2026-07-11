@@ -1,6 +1,6 @@
 import hashlib
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.enums import ContentType
 
@@ -18,6 +18,7 @@ class ContentSeed(BaseModel):
     attribution: str | None = None
     source: str = "builtin"
     difficulty: str | None = None
+    extra_data: dict[str, object] = Field(default_factory=dict)
 
     @property
     def content_hash(self) -> str:

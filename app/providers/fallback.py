@@ -1,3 +1,6 @@
+from functools import lru_cache
+from importlib.resources import files
+
 from app.domain.enums import ContentType
 from app.domain.schemas import ContentSeed
 
@@ -85,6 +88,15 @@ BUILTIN_CONTENT = (
 )
 
 
+@lru_cache(maxsize=1)
+def load_word_library() -> tuple[ContentSeed, ...]:
+    resource = files("app.data").joinpath("words.jsonl")
+    with resource.open("r", encoding="utf-8") as word_file:
+        return tuple(ContentSeed.model_validate_json(line) for line in word_file if line.strip())
+
+
 class FallbackContentProvider:
     async def list_content(self, content_type: ContentType) -> list[ContentSeed]:
+        if content_type == ContentType.WORD:
+            return list(load_word_library())
         return [item for item in BUILTIN_CONTENT if item.content_type == content_type]

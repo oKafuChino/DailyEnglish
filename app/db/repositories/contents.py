@@ -37,7 +37,6 @@ class ContentRepository:
                 **seed.model_dump(),
                 "content_hash": seed.content_hash,
                 "status": ContentStatus.APPROVED,
-                "extra_data": {},
             }
             for seed in seeds
         ]
