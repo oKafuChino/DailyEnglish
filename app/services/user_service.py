@@ -1,12 +1,16 @@
+from datetime import time
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import Settings, get_settings
 from app.db.models import User
 from app.db.repositories.users import UserRepository
 
 
 class UserService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, *, settings: Settings | None = None) -> None:
         self.users = UserRepository(session)
+        self.settings = settings or get_settings()
 
     async def ensure_user(
         self,
@@ -23,4 +27,9 @@ class UserService:
             username=username,
             first_name=first_name,
             last_name=last_name,
+            default_timezone=self.settings.app_timezone,
+            default_push_time=time(
+                self.settings.default_push_hour,
+                self.settings.default_push_minute,
+            ),
         )

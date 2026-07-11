@@ -1,0 +1,66 @@
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+
+import pytest
+from sqlalchemy.dialects import postgresql
+
+from app.db.repositories.contents import ContentRepository
+from app.domain.enums import ContentType
+from app.providers.fallback import BUILTIN_CONTENT
+from app.services.content_service import ContentService, ContentUnavailableError
+
+
+def make_service(*, first=None, second=None, seeds=None) -> ContentService:
+    service = ContentService(SimpleNamespace())
+    service.contents = SimpleNamespace(
+        get_random_approved=AsyncMock(side_effect=[first, second]),
+        add_approved_seeds=AsyncMock(),
+    )
+    service.fallback_provider = SimpleNamespace(list_content=AsyncMock(return_value=seeds or []))
+    return service
+
+
+@pytest.mark.asyncio
+async def test_get_random_returns_existing_approved_content() -> None:
+    content = SimpleNamespace(text_en="resilient")
+    service = make_service(first=content)
+
+    result = await service.get_word()
+
+    assert result is content
+    service.fallback_provider.list_content.assert_not_awaited()
+    service.contents.add_approved_seeds.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_get_random_seeds_database_when_content_is_empty() -> None:
+    content = SimpleNamespace(text_en="resilient")
+    seeds = [SimpleNamespace(text_en="resilient")]
+    service = make_service(first=None, second=content, seeds=seeds)
+
+    result = await service.get_random(ContentType.WORD)
+
+    assert result is content
+    service.fallback_provider.list_content.assert_awaited_once_with(ContentType.WORD)
+    service.contents.add_approved_seeds.assert_awaited_once_with(seeds)
+
+
+@pytest.mark.asyncio
+async def test_get_random_raises_when_no_content_is_available() -> None:
+    service = make_service(first=None, second=None)
+
+    with pytest.raises(ContentUnavailableError):
+        await service.get_sentence()
+
+
+@pytest.mark.asyncio
+async def test_seed_insert_uses_mapped_metadata_attribute() -> None:
+    session = SimpleNamespace(execute=AsyncMock(), flush=AsyncMock())
+    repository = ContentRepository(session)
+
+    await repository.add_approved_seeds([BUILTIN_CONTENT[0]])
+
+    statement = session.execute.await_args.args[0]
+    sql = str(statement.compile(dialect=postgresql.dialect()))
+    assert "metadata" in sql
+    session.flush.assert_awaited_once()

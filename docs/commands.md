@@ -1,3 +1,16 @@
-# Bot Commands
+# Bot 命令
 
-User and administrator command contracts will be documented here.
+用户命令：
+
+- `/start`：启动机器人，或接收邀请链接参数。
+- `/register <邀请码>`：完成一次性注册。
+- `/word`、`/sentence`、`/daily`：获取学习内容。
+- `/saved [页码]`：查看收藏。
+
+管理员命令：
+
+- `/invite [有效小时数]`：生成一次性邀请码。
+- `/invites`：查看最近邀请码。
+- `/revoke <邀请码ID>`：撤销未使用的邀请码。
+
+除注册命令外，用户命令要求账号处于 `active` 状态。所有命令和收藏回调仅在 Telegram 私聊中处理。

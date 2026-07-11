@@ -22,6 +22,7 @@ class RateLimitRule:
 class SlidingWindowLimiter:
     def __init__(self) -> None:
         self._events: dict[tuple[int, str], deque[float]] = defaultdict(deque)
+        self._windows: dict[tuple[int, str], int] = {}
         self._lock = asyncio.Lock()
         self._last_cleanup = monotonic()
 
@@ -36,6 +37,7 @@ class SlidingWindowLimiter:
         cutoff = now - rule.window_seconds
         async with self._lock:
             events = self._events[key]
+            self._windows[key] = rule.window_seconds
             while events and events[0] <= cutoff:
                 events.popleft()
             if len(events) >= rule.requests:
@@ -43,14 +45,19 @@ class SlidingWindowLimiter:
                 return False, retry_after
             events.append(now)
             if now - self._last_cleanup >= 300:
-                self._cleanup(cutoff)
+                self._cleanup(now)
                 self._last_cleanup = now
             return True, 0
 
-    def _cleanup(self, cutoff: float) -> None:
-        stale = [key for key, events in self._events.items() if not events or events[-1] <= cutoff]
+    def _cleanup(self, now: float) -> None:
+        stale = [
+            key
+            for key, events in self._events.items()
+            if not events or events[-1] <= now - self._windows.get(key, 0)
+        ]
         for key in stale:
             self._events.pop(key, None)
+            self._windows.pop(key, None)
 
 
 class RateLimitMiddleware(BaseMiddleware):
@@ -112,4 +119,11 @@ class RateLimitMiddleware(BaseMiddleware):
         elif now - self._last_notice.get(key, 0) >= 5:
             self._last_notice[key] = now
             await event.answer(text)
+        if len(self._last_notice) > 10_000:
+            cutoff = now - self.settings.rate_limit_registration_window_seconds
+            self._last_notice = {
+                notice_key: timestamp
+                for notice_key, timestamp in self._last_notice.items()
+                if timestamp > cutoff
+            }
         return None

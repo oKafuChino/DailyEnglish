@@ -19,8 +19,8 @@ chmod 600 .env
 docker compose --env-file .env config --quiet
 
 if [[ -d .git ]]; then
-  if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
-    echo "检测到未提交的已追踪文件修改，已停止自动更新。" >&2
+  if [[ -n "$(git status --porcelain)" ]]; then
+    echo "检测到未提交或未追踪的文件，已停止自动更新。" >&2
     exit 1
   fi
   git pull --ff-only

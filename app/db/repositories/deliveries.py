@@ -1,3 +1,4 @@
+import uuid
 from datetime import date, datetime
 
 from sqlalchemy import select
@@ -44,6 +45,29 @@ class DeliveryRepository:
             )
             .options(selectinload(Delivery.content))
         )
+
+    async def get_by_id_for_update(self, delivery_id: uuid.UUID) -> Delivery | None:
+        return await self.session.scalar(
+            select(Delivery)
+            .where(Delivery.id == delivery_id)
+            .options(selectinload(Delivery.content))
+            .with_for_update()
+        )
+
+    async def list_daily_for_user(
+        self,
+        *,
+        user_id: int,
+        local_date: date,
+    ) -> list[Delivery]:
+        result = await self.session.scalars(
+            select(Delivery).where(
+                Delivery.user_id == user_id,
+                Delivery.local_delivery_date == local_date,
+                Delivery.kind == DeliveryKind.DAILY,
+            )
+        )
+        return list(result)
 
     async def create_daily(
         self,

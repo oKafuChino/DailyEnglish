@@ -30,10 +30,15 @@ class SecretRedactionFilter(logging.Filter):
         return True
 
 
+class RedactingFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        return redact_secrets(super().format(record))
+
+
 def configure_logging(level: str) -> None:
     handler = logging.StreamHandler()
     handler.addFilter(SecretRedactionFilter())
-    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+    handler.setFormatter(RedactingFormatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
     logging.basicConfig(
         level=level,
         handlers=[handler],

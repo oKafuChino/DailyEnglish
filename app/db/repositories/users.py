@@ -1,6 +1,7 @@
-from datetime import datetime
+from datetime import datetime, time
 
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import User
@@ -26,29 +27,38 @@ class UserRepository:
         username: str | None,
         first_name: str | None,
         last_name: str | None,
+        default_timezone: str,
+        default_push_time: time,
     ) -> User:
-        user = await self.get_by_telegram_id(telegram_user_id)
         now = datetime.now(UTC)
-        if user is None:
-            user = User(
+        statement = (
+            insert(User)
+            .values(
                 telegram_user_id=telegram_user_id,
                 chat_id=chat_id,
                 username=username,
                 first_name=first_name,
                 last_name=last_name,
                 status=UserStatus.PENDING,
+                timezone=default_timezone,
+                daily_push_time=default_push_time,
                 last_active_at=now,
             )
-            self.session.add(user)
-            await self.session.flush()
-            return user
-
-        user.chat_id = chat_id
-        user.username = username
-        user.first_name = first_name
-        user.last_name = last_name
-        user.last_active_at = now
-        return user
+            .on_conflict_do_update(
+                index_elements=["telegram_user_id"],
+                set_={
+                    "chat_id": chat_id,
+                    "username": username,
+                    "first_name": first_name,
+                    "last_name": last_name,
+                    "last_active_at": now,
+                    "updated_at": func.now(),
+                },
+            )
+            .returning(User)
+        )
+        result = await self.session.scalars(statement)
+        return result.one()
 
     async def activate(self, user: User, *, at: datetime | None = None) -> None:
         at = at or datetime.now(UTC)
