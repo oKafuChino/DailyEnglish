@@ -29,7 +29,7 @@ DailyEnglish Bot 希望把英语积累变成一件简单且可以长期坚持的
 - 💬 每天自动推送一句英语好句
 - ⭐ 收藏单词和句子，随时分页查看
 - 🔄 通过命令随时获取新的学习内容
-- 🕐 默认推送时区与时间可通过环境变量配置
+- 🕐 用户可调整推送时区、时间和开关
 - 🔐 一次性邀请码注册，防止机器人被滥用
 - 👑 通过 Telegram 数字 ID 识别机器人管理员
 - 🛠️ 管理员可生成、查看和撤销邀请码
@@ -49,7 +49,7 @@ DailyEnglish Bot 希望把英语积累变成一件简单且可以长期坚持的
 - [x] 单词和句子内容服务与手动获取命令
 - [x] 收藏、取消收藏与分页收藏列表
 - [x] 每日定时推送 Worker 与失败重试
-- [ ] 用户设置
+- [x] 用户推送时间、时区与开关设置
 - [x] 分级限流、日志脱敏与运行时安全校验
 - [x] Docker 健康检查、日志轮转和 PostgreSQL 备份恢复
 - [ ] 外部监控与告警
@@ -274,6 +274,7 @@ ruff format --check .
 | `/sentence` | 获取一句英语好句 |
 | `/daily` | 获取今天的单词和句子 |
 | `/saved` | 分页查看收藏内容 |
+| `/setting`、`/settings` | 设置推送时间、时区和推送开关 |
 | `/invite` | 管理员生成一次性邀请码 |
 | `/invites` | 管理员查看邀请码状态 |
 | `/revoke <邀请码ID>` | 管理员撤销尚未使用的邀请码 |
@@ -309,6 +310,16 @@ ruff format --check .
 
 测试源码会提交到 GitHub，但 `.pytest_cache`、覆盖率报告等运行产物不会提交。GitHub Actions 会使用 PostgreSQL 16 执行代码检查、迁移、单元测试、数据库集成测试、Compose 配置校验和 Docker 镜像构建。
 
+数据库集成测试具有破坏性，只允许数据库名以 `_test` 结尾或 `test_` 开头，并要求显式设置：
+
+```bash
+export TEST_DATABASE_URL=postgresql+asyncpg://user:password@localhost/dailyenglish_test
+export TEST_DATABASE_RESET_CONFIRM=dailyenglish-test-database-reset
+pytest tests/integration
+```
+
+保护条件会在建立连接和删除测试表之前执行。禁止将 `TEST_DATABASE_URL` 指向生产数据库。
+
 生产与开发依赖通过 `requirements.lock` 固定版本。升级依赖时，应在独立分支更新锁文件并完整运行：
 
 ```bash
@@ -320,7 +331,7 @@ pytest
 
 ## 🧭 后续计划
 
-下一阶段将实现 `/settings`，允许用户调整时区、推送时间与推送开关；之后补充外部内容 Provider、异地备份、监控和告警。当前 `backups/` 位于 VPS 本机，生产环境应定期同步到另一台服务器或对象存储，避免单机磁盘故障同时丢失数据库与备份。
+下一阶段将补充外部内容 Provider、异地备份、监控和告警。当前 `backups/` 位于 VPS 本机，生产环境应定期同步到另一台服务器或对象存储，避免单机磁盘故障同时丢失数据库与备份。
 
 ---
 

@@ -6,6 +6,7 @@ from aiogram.types import CallbackQuery, ErrorEvent, Message
 
 from app.bot.middlewares.rate_limit import RateLimitMiddleware
 from app.bot.routers import admin, public, user
+from app.bot.routers import settings as settings_router
 from app.config import get_settings
 from app.db.session import close_database
 from app.logging import configure_logging
@@ -43,7 +44,7 @@ async def main() -> None:
     dispatcher.message.middleware(rate_limiter)
     dispatcher.callback_query.middleware(rate_limiter)
     dispatcher.errors.register(handle_error)
-    dispatcher.include_routers(admin.router, public.router, user.router)
+    dispatcher.include_routers(admin.router, public.router, settings_router.router, user.router)
 
     try:
         await dispatcher.start_polling(
