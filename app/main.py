@@ -8,8 +8,9 @@ from app.bot.middlewares.rate_limit import RateLimitMiddleware
 from app.bot.routers import admin, public, user
 from app.bot.routers import settings as settings_router
 from app.config import get_settings
-from app.db.session import close_database
+from app.db.session import close_database, session_scope
 from app.logging import configure_logging
+from app.services.content_service import ContentService
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,10 @@ async def main() -> None:
     settings = get_settings()
     settings.validate_bot_runtime()
     configure_logging(settings.log_level)
+
+    async with session_scope() as session:
+        synchronized = await ContentService(session).sync_packaged_content()
+    logger.info("Packaged content synchronized entries=%d", synchronized)
 
     bot = Bot(token=settings.bot_token.get_secret_value())
     dispatcher = Dispatcher()

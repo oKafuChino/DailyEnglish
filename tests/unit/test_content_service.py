@@ -54,6 +54,29 @@ async def test_get_random_raises_when_no_content_is_available() -> None:
 
 
 @pytest.mark.asyncio
+async def test_sync_packaged_content_seeds_words_and_sentences() -> None:
+    word_seeds = [SimpleNamespace(text_en="word-1"), SimpleNamespace(text_en="word-2")]
+    sentence_seeds = [SimpleNamespace(text_en="sentence-1")]
+    service = ContentService(SimpleNamespace())
+    service.contents = SimpleNamespace(add_approved_seeds=AsyncMock())
+    service.fallback_provider = SimpleNamespace(
+        list_content=AsyncMock(side_effect=[word_seeds, sentence_seeds])
+    )
+
+    total = await service.sync_packaged_content()
+
+    assert total == 3
+    assert service.fallback_provider.list_content.await_args_list == [
+        ((ContentType.WORD,),),
+        ((ContentType.SENTENCE,),),
+    ]
+    assert service.contents.add_approved_seeds.await_args_list == [
+        ((word_seeds,),),
+        ((sentence_seeds,),),
+    ]
+
+
+@pytest.mark.asyncio
 async def test_seed_insert_uses_mapped_metadata_attribute() -> None:
     session = SimpleNamespace(execute=AsyncMock(), flush=AsyncMock())
     repository = ContentRepository(session)

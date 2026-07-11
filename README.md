@@ -48,6 +48,7 @@ DailyEnglish Bot 希望把英语积累变成一件简单且可以长期坚持的
 - [x] 邀请码生成、撤销与一次性注册流程
 - [x] 单词和句子内容服务与手动获取命令
 - [x] 2000 词本地分级词库（B1 600 / B2 800 / C1 600）
+- [x] 300 句原创双语句子库（B1 / B2 / C1 各 100 句）
 - [x] 收藏、取消收藏与分页收藏列表
 - [x] 每日定时推送 Worker 与失败重试
 - [x] 用户推送时间、时区与开关设置
@@ -292,6 +293,14 @@ ruff format --check .
 ```bash
 python scripts/build_word_library.py /path/to/ecdict.csv app/data/words.jsonl
 ```
+
+项目还内置 300 条原创双语句子，B1、B2、C1 各 100 条。句子标记为 `DailyEnglish Original`，可通过以下命令重复生成：
+
+```bash
+python scripts/build_sentence_library.py
+```
+
+Bot 和 Worker 每次启动时都会幂等同步包内内容库。更新已有 VPS 部署并重启容器后，程序会按内容哈希自动补充缺失的单词和句子，不会清空数据库、覆盖已有内容或破坏用户收藏。
 
 ## 🗄️ 数据库设计
 

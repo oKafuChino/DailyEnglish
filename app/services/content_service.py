@@ -33,6 +33,14 @@ class ContentService:
             raise ContentUnavailableError(f"No approved {content_type.value} content available")
         return content
 
+    async def sync_packaged_content(self) -> int:
+        total = 0
+        for content_type in (ContentType.WORD, ContentType.SENTENCE):
+            seeds = await self.fallback_provider.list_content(content_type)
+            await self.contents.add_approved_seeds(seeds)
+            total += len(seeds)
+        return total
+
     async def get_word(self) -> ContentItem:
         return await self.get_random(ContentType.WORD)
 

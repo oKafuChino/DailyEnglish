@@ -95,8 +95,19 @@ def load_word_library() -> tuple[ContentSeed, ...]:
         return tuple(ContentSeed.model_validate_json(line) for line in word_file if line.strip())
 
 
+@lru_cache(maxsize=1)
+def load_sentence_library() -> tuple[ContentSeed, ...]:
+    resource = files("app.data").joinpath("sentences.jsonl")
+    with resource.open("r", encoding="utf-8") as sentence_file:
+        return tuple(
+            ContentSeed.model_validate_json(line) for line in sentence_file if line.strip()
+        )
+
+
 class FallbackContentProvider:
     async def list_content(self, content_type: ContentType) -> list[ContentSeed]:
         if content_type == ContentType.WORD:
             return list(load_word_library())
+        if content_type == ContentType.SENTENCE:
+            return list(load_sentence_library())
         return [item for item in BUILTIN_CONTENT if item.content_type == content_type]
