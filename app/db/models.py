@@ -178,7 +178,26 @@ class ContentItem(TimestampMixin, Base):
     favorites: Mapped[list["Favorite"]] = relationship(back_populates="content")
     deliveries: Mapped[list["Delivery"]] = relationship(back_populates="content")
 
-    __table_args__ = (Index("ix_content_items_selection", "content_type", "status", "created_at"),)
+    __table_args__ = (
+        Index("ix_content_items_selection", "content_type", "status", "created_at"),
+        Index(
+            "ix_content_items_difficulty_selection",
+            "content_type",
+            "status",
+            "difficulty",
+            "created_at",
+        ),
+    )
+
+
+class AppState(Base):
+    __tablename__ = "app_state"
+
+    key: Mapped[str] = mapped_column(String(128), primary_key=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
 
 
 class Favorite(Base):

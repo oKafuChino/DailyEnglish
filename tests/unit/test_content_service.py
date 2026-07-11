@@ -74,7 +74,7 @@ async def test_get_random_raises_when_no_content_is_available() -> None:
 
 
 @pytest.mark.asyncio
-async def test_sync_packaged_content_seeds_words_and_sentences() -> None:
+async def test_sync_packaged_content_seeds_words_and_sentences(monkeypatch) -> None:
     word_seeds = [SimpleNamespace(text_en="word-1"), SimpleNamespace(text_en="word-2")]
     sentence_seeds = [SimpleNamespace(text_en="sentence-1")]
     service = ContentService(SimpleNamespace())
@@ -82,6 +82,9 @@ async def test_sync_packaged_content_seeds_words_and_sentences() -> None:
     service.fallback_provider = SimpleNamespace(
         list_content=AsyncMock(side_effect=[word_seeds, sentence_seeds])
     )
+    service._try_packaged_content_lock = AsyncMock(return_value=True)
+    state = SimpleNamespace(get=AsyncMock(return_value=None), set=AsyncMock())
+    monkeypatch.setattr("app.services.content_service.AppStateRepository", lambda _: state)
 
     total = await service.sync_packaged_content()
 
@@ -94,6 +97,47 @@ async def test_sync_packaged_content_seeds_words_and_sentences() -> None:
         ((word_seeds,),),
         ((sentence_seeds,),),
     ]
+
+
+@pytest.mark.asyncio
+async def test_sync_packaged_content_skips_when_fingerprint_matches(monkeypatch) -> None:
+    session = SimpleNamespace()
+    service = ContentService(session)
+    service.contents = SimpleNamespace(session=session, add_approved_seeds=AsyncMock())
+    service.fallback_provider = SimpleNamespace(list_content=AsyncMock())
+
+    state = SimpleNamespace(get=AsyncMock(return_value="fingerprint"), set=AsyncMock())
+    monkeypatch.setattr(
+        "app.services.content_service.packaged_content_fingerprint",
+        lambda: "fingerprint",
+    )
+    monkeypatch.setattr("app.services.content_service.AppStateRepository", lambda _: state)
+
+    total = await service.sync_packaged_content()
+
+    assert total == 0
+    service.fallback_provider.list_content.assert_not_awaited()
+    service.contents.add_approved_seeds.assert_not_awaited()
+    state.set.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_sync_packaged_content_skips_when_lock_is_busy(monkeypatch) -> None:
+    session = SimpleNamespace()
+    service = ContentService(session)
+    service.contents = SimpleNamespace(session=session, add_approved_seeds=AsyncMock())
+    service.fallback_provider = SimpleNamespace(list_content=AsyncMock())
+    service._try_packaged_content_lock = AsyncMock(return_value=False)
+
+    state = SimpleNamespace(get=AsyncMock(return_value=None), set=AsyncMock())
+    monkeypatch.setattr("app.services.content_service.packaged_content_fingerprint", lambda: "new")
+    monkeypatch.setattr("app.services.content_service.AppStateRepository", lambda _: state)
+
+    total = await service.sync_packaged_content()
+
+    assert total == 0
+    service.fallback_provider.list_content.assert_not_awaited()
+    state.set.assert_not_awaited()
 
 
 @pytest.mark.asyncio

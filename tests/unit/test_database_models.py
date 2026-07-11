@@ -6,6 +6,7 @@ from app.db.models import Base
 def test_initial_schema_contains_expected_tables() -> None:
     assert set(Base.metadata.tables) == {
         "admin_audit_logs",
+        "app_state",
         "content_items",
         "deliveries",
         "favorites",

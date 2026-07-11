@@ -1,6 +1,11 @@
+import hashlib
+from importlib.resources import files
+
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import ContentItem
+from app.db.repositories.app_state import AppStateRepository
 from app.db.repositories.contents import ContentRepository
 from app.domain.enums import ContentType
 from app.providers.base import ContentProvider
@@ -11,6 +16,10 @@ class ContentUnavailableError(RuntimeError):
     pass
 
 
+PACKAGED_CONTENT_STATE_KEY = "packaged_content_fingerprint"
+PACKAGED_CONTENT_LOCK_ID = 202607110004
+
+
 class ContentService:
     def __init__(
         self,
@@ -18,6 +27,7 @@ class ContentService:
         *,
         fallback_provider: ContentProvider | None = None,
     ) -> None:
+        self.session = session
         self.contents = ContentRepository(session)
         self.fallback_provider = fallback_provider or FallbackContentProvider()
 
@@ -50,6 +60,38 @@ class ContentService:
         return content
 
     async def sync_packaged_content(self) -> int:
+        fingerprint = packaged_content_fingerprint()
+        state = AppStateRepository(self.session)
+        if await state.get(PACKAGED_CONTENT_STATE_KEY) == fingerprint:
+            return 0
+
+        lock_acquired = await self._try_packaged_content_lock()
+        if not lock_acquired:
+            return 0
+        try:
+            if await state.get(PACKAGED_CONTENT_STATE_KEY) == fingerprint:
+                return 0
+            total = 0
+            for content_type in (ContentType.WORD, ContentType.SENTENCE):
+                seeds = await self.fallback_provider.list_content(content_type)
+                await self.contents.add_approved_seeds(seeds)
+                total += len(seeds)
+            await state.set(PACKAGED_CONTENT_STATE_KEY, fingerprint)
+            return total
+        finally:
+            await self._unlock_packaged_content()
+
+    async def _try_packaged_content_lock(self) -> bool:
+        result = await self.contents.session.scalar(
+            select(func.pg_try_advisory_xact_lock(PACKAGED_CONTENT_LOCK_ID))
+        )
+        return bool(result)
+
+    async def _unlock_packaged_content(self) -> None:
+        # Transaction-level advisory locks are released automatically on commit/rollback.
+        return None
+
+    async def sync_packaged_content_unconditional(self) -> int:
         total = 0
         for content_type in (ContentType.WORD, ContentType.SENTENCE):
             seeds = await self.fallback_provider.list_content(content_type)
@@ -74,3 +116,14 @@ def normalize_difficulties(value: list[str] | str | None) -> list[str] | None:
         if level in {"B1", "B2", "C1"} and level not in normalized:
             normalized.append(level)
     return normalized or None
+
+
+def packaged_content_fingerprint() -> str:
+    digest = hashlib.sha256()
+    for filename in ("words.jsonl", "sentences.jsonl"):
+        resource = files("app.data").joinpath(filename)
+        digest.update(filename.encode())
+        with resource.open("rb") as content_file:
+            for chunk in iter(lambda: content_file.read(1024 * 1024), b""):
+                digest.update(chunk)
+    return digest.hexdigest()
