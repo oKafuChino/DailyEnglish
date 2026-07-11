@@ -86,4 +86,6 @@ async def test_seed_insert_uses_mapped_metadata_attribute() -> None:
     statement = session.execute.await_args.args[0]
     sql = str(statement.compile(dialect=postgresql.dialect()))
     assert "metadata" in sql
+    assert "ON CONFLICT" in sql
+    assert "example_en" in sql
     session.flush.assert_awaited_once()

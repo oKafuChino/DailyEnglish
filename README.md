@@ -292,7 +292,10 @@ ruff format --check .
 
 ```bash
 python scripts/build_word_library.py /path/to/ecdict.csv app/data/words.jsonl
+python scripts/fill_word_examples.py --mode offline
 ```
+
+`build_word_library.py` 负责重建词条、释义、音标和分级；`fill_word_examples.py` 负责为单词补充英文例句。默认 `offline` 模式不依赖网络，会生成项目原创模板例句；如需尝试在线词典例句，可使用 `--mode api`。
 
 项目还内置 300 条原创双语句子，B1、B2、C1 各 100 条。句子标记为 `DailyEnglish Original`，可通过以下命令重复生成：
 

@@ -17,6 +17,7 @@ def test_packaged_word_library_has_expected_distribution() -> None:
     assert len({word.text_en.casefold() for word in words}) == 2_000
     assert all(word.content_type == ContentType.WORD for word in words)
     assert all(word.translation_zh.strip() for word in words)
+    assert all(word.example_en and word.example_en.strip() for word in words)
     assert all(word.extra_data.get("source_tags") for word in words)
 
 

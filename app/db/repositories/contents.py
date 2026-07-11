@@ -41,6 +41,18 @@ class ContentRepository:
             for seed in seeds
         ]
         statement = insert(ContentItem).values(values)
-        statement = statement.on_conflict_do_nothing(index_elements=["content_hash"])
+        statement = statement.on_conflict_do_update(
+            index_elements=["content_hash"],
+            set_={
+                "example_en": func.coalesce(
+                    ContentItem.example_en,
+                    statement.excluded.example_en,
+                ),
+                "example_zh": func.coalesce(
+                    ContentItem.example_zh,
+                    statement.excluded.example_zh,
+                ),
+            },
+        )
         await self.session.execute(statement)
         await self.session.flush()
