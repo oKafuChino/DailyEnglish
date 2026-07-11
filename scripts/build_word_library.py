@@ -5,16 +5,20 @@ import re
 from collections import Counter
 from pathlib import Path
 
-TARGET_COUNTS = {"B1": 2400, "B2": 2400, "C1": 3200}
+TARGET_COUNTS = {"B1": 15000, "B2": 20000, "C1": 15000}
 WORD_PATTERN = re.compile(r"[a-z]+(?:-[a-z]+)?")
 CHINESE_PATTERN = re.compile(r"[\u3400-\u9fff]")
 LEMMA_PATTERN = re.compile(r"(?:^|/)0:([^/]+)")
 SPECIAL_LABEL_PATTERN = re.compile(r"\[[^]]+\]")
+ABBREVIATION_PATTERN = re.compile(r"(?:^|[;；,，\s])abbr\.", re.IGNORECASE)
+PROPER_NOUN_MARKER_PATTERN = re.compile(r"人名|地名|男子名|女子名|姓氏")
+REPEATED_LETTER_PATTERN = re.compile(r"([a-z])\1{2,}")
 
 # Exam-tagged source data can still contain entries unsuitable for a general audience.
 BLOCKED_WORDS = {
     "bastard",
     "bitch",
+    "abc",
     "cunt",
     "fuck",
     "motherfucker",
@@ -24,6 +28,7 @@ BLOCKED_WORDS = {
     "rapist",
     "slut",
     "whore",
+    "zzz",
 }
 
 POS_LABELS = (
@@ -40,8 +45,8 @@ POS_LABELS = (
 
 
 def classify(tags: set[str], best_rank: int) -> str | None:
-    # ECDICT exam tags overlap heavily, so frequency bands keep common words out
-    # of advanced levels. These are project-specific approximations, not CEFR labels.
+    # ECDICT exam tags overlap heavily, so frequency bands keep common words out of
+    # advanced levels. These are project-specific approximations, not CEFR labels.
     if {"cet4", "gk", "ky"} & tags and not {"toefl", "gre"} & tags and 200 <= best_rank <= 20_000:
         return "B1"
     if (
@@ -54,6 +59,14 @@ def classify(tags: set[str], best_rank: int) -> str | None:
     if {"toefl", "gre"} & tags and "cet4" not in tags and 2_500 <= best_rank <= 80_000:
         return "C1"
     return None
+
+
+def difficulty_for_rank(index: int) -> str:
+    if index < TARGET_COUNTS["B1"]:
+        return "B1"
+    if index < TARGET_COUNTS["B1"] + TARGET_COUNTS["B2"]:
+        return "B2"
+    return "C1"
 
 
 def parse_rank(value: str) -> int:
@@ -103,10 +116,17 @@ def build_entry(row: dict[str, str], difficulty: str) -> dict[str, object] | Non
     word = row["word"].strip().lower()
     if not WORD_PATTERN.fullmatch(word) or not 3 <= len(word) <= 32 or word in BLOCKED_WORDS:
         return None
+    if REPEATED_LETTER_PATTERN.fullmatch(word):
+        return None
+    translation_raw = row.get("translation", "")
+    if ABBREVIATION_PATTERN.search(translation_raw):
+        return None
+    if PROPER_NOUN_MARKER_PATTERN.search(translation_raw):
+        return None
     lemma_match = LEMMA_PATTERN.search(row.get("exchange", ""))
     if lemma_match and lemma_match.group(1).lower() != word:
         return None
-    translation = clean_translation(row.get("translation", ""))
+    translation = clean_translation(translation_raw)
     if translation is None:
         return None
     tags = sorted(set(row.get("tag", "").split()))
@@ -131,27 +151,38 @@ def build_entry(row: dict[str, str], difficulty: str) -> dict[str, object] | Non
 
 def generate(source: Path, output: Path) -> Counter[str]:
     csv.field_size_limit(10_000_000)
-    candidates: dict[str, list[tuple[tuple[int, int, int, str], dict[str, object]]]] = {
-        level: [] for level in TARGET_COUNTS
-    }
+    candidates: list[tuple[tuple[int, int, int, int, str], dict[str, str]]] = []
     with source.open(encoding="utf-8", newline="") as source_file:
         for row in csv.DictReader(source_file):
             best_rank = min(parse_rank(row.get("bnc", "")), parse_rank(row.get("frq", "")))
-            difficulty = classify(set(row.get("tag", "").split()), best_rank)
-            if difficulty is None:
+            if build_entry(row, "B1") is None:
                 continue
-            entry = build_entry(row, difficulty)
-            if entry is not None:
-                candidates[difficulty].append((source_score(row, difficulty), entry))
+            oxford_penalty = 0 if row.get("oxford") == "1" else 1
+            collins = -int(row["collins"]) if row.get("collins", "").isdigit() else 0
+            candidates.append(
+                (
+                    (
+                        best_rank,
+                        oxford_penalty,
+                        collins,
+                        -len(set(row.get("tag", "").split())),
+                        row["word"],
+                    ),
+                    row,
+                )
+            )
 
     selected: list[dict[str, object]] = []
-    for difficulty, target in TARGET_COUNTS.items():
-        ordered = sorted(candidates[difficulty], key=lambda item: item[0])
-        if len(ordered) < target:
-            raise RuntimeError(
-                f"Not enough {difficulty} candidates: required {target}, found {len(ordered)}"
-            )
-        selected.extend(entry for _, entry in ordered[:target])
+    target_total = sum(TARGET_COUNTS.values())
+    ordered = sorted(candidates, key=lambda item: item[0])
+    if len(ordered) < target_total:
+        raise RuntimeError(f"Not enough candidates: required {target_total}, found {len(ordered)}")
+    for index, (_, row) in enumerate(ordered[:target_total]):
+        difficulty = difficulty_for_rank(index)
+        entry = build_entry(row, difficulty)
+        if entry is None:
+            raise RuntimeError(f"Candidate unexpectedly rejected: {row['word']}")
+        selected.append(entry)
 
     words = [str(entry["text_en"]) for entry in selected]
     if len(words) != len(set(words)):
