@@ -18,14 +18,14 @@ class ContentRepository:
         self,
         content_type: ContentType,
         *,
-        difficulty: str | None = None,
+        difficulties: list[str] | None = None,
     ) -> ContentItem | None:
         filters = [
             ContentItem.content_type == content_type,
             ContentItem.status == ContentStatus.APPROVED,
         ]
-        if difficulty:
-            filters.append(ContentItem.difficulty == difficulty)
+        if difficulties:
+            filters.append(ContentItem.difficulty.in_(difficulties))
         return await self.session.scalar(
             select(ContentItem).where(*filters).order_by(func.random()).limit(1)
         )

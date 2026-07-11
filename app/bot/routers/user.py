@@ -3,7 +3,7 @@ import math
 from aiogram import Router
 from aiogram.filters import Command
 from aiogram.filters.command import CommandObject
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import BufferedInputFile, CallbackQuery, Message
 
 from app.bot.filters.private_chat import PrivateChatFilter
 from app.bot.formatters import format_sentence, format_word
@@ -18,6 +18,7 @@ from app.db.session import session_scope
 from app.domain.enums import ContentType
 from app.exceptions import FavoriteContentNotFoundError
 from app.services.content_service import ContentService, ContentUnavailableError
+from app.services.excel_export import build_favorite_words_xlsx
 from app.services.favorite_service import FavoriteService
 
 router = Router(name="user")
@@ -155,3 +156,18 @@ async def saved(message: Message, command: CommandObject, current_user: User) ->
             parse_mode="HTML",
             reply_markup=favorite_keyboard(favorite.content_id, saved=True),
         )
+
+
+@router.message(Command("export_words"), flags={"rate_limit": "content"})
+async def export_words(message: Message, current_user: User) -> None:
+    async with session_scope() as session:
+        favorites = await FavoriteService(session).list_word_favorites(user_id=current_user.id)
+    if not favorites:
+        await message.answer("你还没有收藏任何单词，暂时无法导出。")
+        return
+
+    data = build_favorite_words_xlsx(favorites)
+    await message.answer_document(
+        BufferedInputFile(data, filename="dailyenglish-favorite-words.xlsx"),
+        caption=f"已导出 {len(favorites)} 个收藏单词。",
+    )

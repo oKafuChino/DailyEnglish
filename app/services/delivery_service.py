@@ -30,7 +30,7 @@ class DeliveryService:
             return delivery
         content = await self.contents.get_random(
             content_type,
-            difficulty=user.preferred_difficulty,
+            difficulties=user.preferred_difficulty,
         )
         return await self.deliveries.create_daily(
             user=user,

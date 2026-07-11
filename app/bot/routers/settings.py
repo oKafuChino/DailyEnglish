@@ -14,7 +14,7 @@ from app.bot.middlewares.registration import RegistrationMiddleware
 from app.bot.states.settings import UserSettings
 from app.db.models import User
 from app.db.session import session_scope
-from app.services.user_service import UserService
+from app.services.user_service import UserService, parse_preferred_difficulties
 
 router = Router(name="settings")
 router.message.filter(PrivateChatFilter())
@@ -34,7 +34,7 @@ def parse_push_time(value: str) -> time:
 
 def format_settings(user: User) -> str:
     enabled = "已开启" if user.daily_push_enabled else "已关闭"
-    difficulty = "混合" if user.preferred_difficulty == "mixed" else user.preferred_difficulty
+    difficulty = "/".join(parse_preferred_difficulties(user.preferred_difficulty))
     lines = [
         "⚙️ <b>推送设置</b>",
         "",
@@ -82,6 +82,9 @@ async def settings_action(
             await callback.message.edit_reply_markup(reply_markup=None)
         await callback.answer()
         return
+    if callback_data.action == "noop":
+        await callback.answer()
+        return
     if callback_data.action == "time":
         await state.set_state(UserSettings.waiting_for_push_time)
         if callback.message:
@@ -102,12 +105,12 @@ async def settings_action(
             return
         try:
             async with session_scope() as session:
-                user = await UserService(session).set_preferred_difficulty(
+                user = await UserService(session).toggle_preferred_difficulty(
                     user_id=current_user.id,
                     difficulty=callback_data.value,
                 )
         except ValueError:
-            await callback.answer("不支持的难度", show_alert=True)
+            await callback.answer("至少需要保留一个推送难度。", show_alert=True)
             return
         if callback.message:
             await callback.message.edit_text(

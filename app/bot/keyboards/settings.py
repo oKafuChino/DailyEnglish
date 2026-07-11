@@ -8,15 +8,14 @@ class SettingsCallback(CallbackData, prefix="user_settings"):
 
 
 DIFFICULTY_LABELS = {
-    "mixed": "混合",
     "B1": "B1",
     "B2": "B2",
     "C1": "C1",
 }
 
 
-def difficulty_button_text(value: str, current: str) -> str:
-    prefix = "✅ " if value == current else ""
+def difficulty_button_text(value: str, selected: set[str]) -> str:
+    prefix = "✅ " if value in selected else "⬜ "
     return f"{prefix}{DIFFICULTY_LABELS[value]}"
 
 
@@ -26,7 +25,8 @@ def settings_keyboard(
     preferred_difficulty: str = "mixed",
 ) -> InlineKeyboardMarkup:
     toggle_label = "🔕 关闭推送" if push_enabled else "🔔 开启推送"
-    current = preferred_difficulty if preferred_difficulty in DIFFICULTY_LABELS else "mixed"
+    selected = parse_difficulty_selection(preferred_difficulty)
+    summary = "/".join(difficulty for difficulty in ("B1", "B2", "C1") if difficulty in selected)
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -47,19 +47,21 @@ def settings_keyboard(
             ],
             [
                 InlineKeyboardButton(
-                    text=f"🎚️ 难度：{DIFFICULTY_LABELS[current]}",
-                    callback_data=SettingsCallback(action="difficulty", value="mixed").pack(),
-                ),
+                    text=f"🎚️ 难度：{summary}",
+                    callback_data=SettingsCallback(action="noop").pack(),
+                )
+            ],
+            [
                 InlineKeyboardButton(
-                    text=difficulty_button_text("B1", current),
+                    text=difficulty_button_text("B1", selected),
                     callback_data=SettingsCallback(action="difficulty", value="B1").pack(),
                 ),
                 InlineKeyboardButton(
-                    text=difficulty_button_text("B2", current),
+                    text=difficulty_button_text("B2", selected),
                     callback_data=SettingsCallback(action="difficulty", value="B2").pack(),
                 ),
                 InlineKeyboardButton(
-                    text=difficulty_button_text("C1", current),
+                    text=difficulty_button_text("C1", selected),
                     callback_data=SettingsCallback(action="difficulty", value="C1").pack(),
                 ),
             ],
@@ -71,3 +73,9 @@ def settings_keyboard(
             ],
         ]
     )
+
+
+def parse_difficulty_selection(value: str) -> set[str]:
+    selected = {item.strip().upper() for item in value.split(",") if item.strip()}
+    selected &= set(DIFFICULTY_LABELS)
+    return selected or set(DIFFICULTY_LABELS)

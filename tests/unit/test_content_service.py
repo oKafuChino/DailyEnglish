@@ -42,11 +42,11 @@ async def test_get_random_uses_requested_difficulty_and_falls_back() -> None:
     )
     service.fallback_provider = SimpleNamespace(list_content=AsyncMock())
 
-    result = await service.get_random(ContentType.WORD, difficulty="B2")
+    result = await service.get_random(ContentType.WORD, difficulties=["B2", "C1"])
 
     assert result is content
     assert service.contents.get_random_approved.await_args_list == [
-        ((ContentType.WORD,), {"difficulty": "B2"}),
+        ((ContentType.WORD,), {"difficulties": ["B2", "C1"]}),
         ((ContentType.WORD,),),
     ]
     service.fallback_provider.list_content.assert_not_awaited()

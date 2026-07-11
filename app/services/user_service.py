@@ -9,7 +9,8 @@ from app.db.repositories.users import UserRepository
 from app.domain.scheduling import next_daily_push_at
 from app.domain.time import UTC
 
-ALLOWED_DIFFICULTIES = {"mixed", "B1", "B2", "C1"}
+ALLOWED_DIFFICULTIES = {"B1", "B2", "C1"}
+DEFAULT_DIFFICULTIES = ("B1", "B2", "C1")
 
 
 class UserService:
@@ -80,19 +81,24 @@ class UserService:
         self._reschedule(user, now=now)
         return user
 
-    async def set_preferred_difficulty(
+    async def toggle_preferred_difficulty(
         self,
         *,
         user_id: int,
         difficulty: str,
     ) -> User:
         normalized = difficulty.strip().upper()
-        if normalized == "MIXED":
-            normalized = "mixed"
         if normalized not in ALLOWED_DIFFICULTIES:
             raise ValueError("Unsupported difficulty")
         user = await self._get_for_update(user_id)
-        user.preferred_difficulty = normalized
+        selected = parse_preferred_difficulties(user.preferred_difficulty)
+        if normalized in selected:
+            if len(selected) == 1:
+                raise ValueError("At least one difficulty must remain selected")
+            selected.remove(normalized)
+        else:
+            selected.append(normalized)
+        user.preferred_difficulty = format_preferred_difficulties(selected)
         return user
 
     async def _get_for_update(self, user_id: int) -> User:
@@ -111,3 +117,26 @@ class UserService:
             push_time=user.daily_push_time,
             after=now or datetime.now(UTC),
         )
+
+
+def parse_preferred_difficulties(value: str | None) -> list[str]:
+    if not value or value == "mixed":
+        return list(DEFAULT_DIFFICULTIES)
+    selected: list[str] = []
+    for item in value.split(","):
+        difficulty = item.strip().upper()
+        if difficulty in ALLOWED_DIFFICULTIES and difficulty not in selected:
+            selected.append(difficulty)
+    return selected or list(DEFAULT_DIFFICULTIES)
+
+
+def format_preferred_difficulties(values: list[str]) -> str:
+    order = {difficulty: index for index, difficulty in enumerate(DEFAULT_DIFFICULTIES)}
+    normalized = [
+        difficulty
+        for difficulty in sorted(set(values), key=lambda item: order.get(item, 99))
+        if difficulty in ALLOWED_DIFFICULTIES
+    ]
+    if not normalized:
+        raise ValueError("At least one difficulty must remain selected")
+    return ",".join(normalized)

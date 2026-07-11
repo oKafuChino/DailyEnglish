@@ -37,3 +37,6 @@ class FavoriteService:
             offset=(page - 1) * page_size,
         )
         return items, total
+
+    async def list_word_favorites(self, *, user_id: int) -> list[Favorite]:
+        return await self.favorites.list_word_favorites_for_user(user_id=user_id)

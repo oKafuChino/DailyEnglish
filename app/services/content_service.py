@@ -25,14 +25,14 @@ class ContentService:
         self,
         content_type: ContentType,
         *,
-        difficulty: str | None = None,
+        difficulties: list[str] | str | None = None,
     ) -> ContentItem:
-        normalized_difficulty = normalize_difficulty(difficulty)
+        normalized_difficulties = normalize_difficulties(difficulties)
         content = await self.contents.get_random_approved(
             content_type,
-            difficulty=normalized_difficulty,
+            difficulties=normalized_difficulties,
         )
-        if content is None and normalized_difficulty is not None:
+        if content is None and normalized_difficulties is not None:
             content = await self.contents.get_random_approved(content_type)
         if content is not None:
             return content
@@ -41,9 +41,9 @@ class ContentService:
         await self.contents.add_approved_seeds(seeds)
         content = await self.contents.get_random_approved(
             content_type,
-            difficulty=normalized_difficulty,
+            difficulties=normalized_difficulties,
         )
-        if content is None and normalized_difficulty is not None:
+        if content is None and normalized_difficulties is not None:
             content = await self.contents.get_random_approved(content_type)
         if content is None:
             raise ContentUnavailableError(f"No approved {content_type.value} content available")
@@ -57,15 +57,20 @@ class ContentService:
             total += len(seeds)
         return total
 
-    async def get_word(self, *, difficulty: str | None = None) -> ContentItem:
-        return await self.get_random(ContentType.WORD, difficulty=difficulty)
+    async def get_word(self, *, difficulties: list[str] | str | None = None) -> ContentItem:
+        return await self.get_random(ContentType.WORD, difficulties=difficulties)
 
-    async def get_sentence(self, *, difficulty: str | None = None) -> ContentItem:
-        return await self.get_random(ContentType.SENTENCE, difficulty=difficulty)
+    async def get_sentence(self, *, difficulties: list[str] | str | None = None) -> ContentItem:
+        return await self.get_random(ContentType.SENTENCE, difficulties=difficulties)
 
 
-def normalize_difficulty(value: str | None) -> str | None:
-    if not value:
+def normalize_difficulties(value: list[str] | str | None) -> list[str] | None:
+    if value is None:
         return None
-    normalized = value.strip().upper()
-    return normalized if normalized in {"B1", "B2", "C1"} else None
+    raw_values = value.split(",") if isinstance(value, str) else value
+    normalized = []
+    for item in raw_values:
+        level = item.strip().upper()
+        if level in {"B1", "B2", "C1"} and level not in normalized:
+            normalized.append(level)
+    return normalized or None

@@ -5,7 +5,8 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.db.models import Favorite
+from app.db.models import ContentItem, Favorite
+from app.domain.enums import ContentType
 
 
 class FavoriteRepository:
@@ -55,3 +56,14 @@ class FavoriteRepository:
             )
             or 0
         )
+
+    async def list_word_favorites_for_user(self, *, user_id: int) -> list[Favorite]:
+        result = await self.session.scalars(
+            select(Favorite)
+            .where(Favorite.user_id == user_id)
+            .join(Favorite.content)
+            .where(ContentItem.content_type == ContentType.WORD)
+            .options(selectinload(Favorite.content))
+            .order_by(Favorite.created_at.desc())
+        )
+        return list(result)

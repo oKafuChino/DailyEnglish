@@ -84,7 +84,7 @@ class User(TimestampMixin, Base):
         String(64), default="Asia/Shanghai", server_default="Asia/Shanghai", nullable=False
     )
     preferred_difficulty: Mapped[str] = mapped_column(
-        String(16), default="mixed", server_default="mixed", nullable=False
+        String(16), default="B1,B2,C1", server_default="B1,B2,C1", nullable=False
     )
     daily_push_time: Mapped[time] = mapped_column(
         Time(timezone=False), default=time(8, 0), server_default="08:00:00", nullable=False
