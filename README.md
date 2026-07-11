@@ -11,11 +11,12 @@
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 ![Code style](https://img.shields.io/badge/code%20style-Ruff-D7FF64?logo=ruff&logoColor=black)
+![Version](https://img.shields.io/badge/version-1.0.0-success)
 
 </div>
 
 > [!NOTE]
-> 项目目前处于早期开发阶段，应用骨架、数据库模型和初始迁移已经完成，机器人业务功能正在持续实现中。
+> 当前版本为 v1.0.0 正式版，已包含邀请注册、管理员工具、每日推送、收藏导出、难度筛选、限流安全、Docker 部署和备份恢复等核心能力。
 
 ## ✨ 项目愿景
 
@@ -50,7 +51,7 @@ DailyEnglish Bot 希望把英语积累变成一件简单且可以长期坚持的
 - [x] 管理员身份校验
 - [x] 邀请码生成、撤销与一次性注册流程
 - [x] 单词和句子内容服务与手动获取命令
-- [x] 50000 词本地分级词库（B1 15000 / B2 20000 / C1 15000）
+- [x] 12000 词高频通用分级词库（B1 3600 / B2 4800 / C1 3600）
 - [x] 300 句原创双语句子库（B1 / B2 / C1 各 100 句）
 - [x] 收藏、取消收藏与分页收藏列表
 - [x] 每日定时推送 Worker 与失败重试
@@ -173,13 +174,13 @@ INVITE_CODE_PEPPER=一个足够长的随机密钥
 如需允许管理员通过 Bot 触发远程更新，可在可信 VPS 上额外配置：
 
 ```env
-ADMIN_UPDATE_COMMAND=cd /opt/dailyenglish && sudo bash scripts/deploy.sh
+ADMIN_UPDATE_COMMAND=/opt/dailyenglish/remote-update.sh
 ADMIN_UPDATE_TIMEOUT_SECONDS=600
 ```
 
-`ADMIN_UPDATE_COMMAND` 为空时 `/update` 不会执行任何系统命令。启用前请确认运行 Bot 的用户具备执行部署脚本所需权限，并且该命令不会要求交互式输入。
+`ADMIN_UPDATE_COMMAND` 为空时 `/update` 不会执行任何系统命令。启用后它只能指向一个绝对路径的 `.sh` / `.bash` 脚本，程序会以 `bash <script>` 方式执行，不经过 shell 拼接。
 
-如果 Bot 运行在 Docker 容器内，容器默认无法直接控制宿主机的 Docker Compose。要使用 `/update`，请改为配置一个你自行准备的安全 wrapper，例如只暴露固定部署脚本、使用受限 sudo 规则或宿主机侧 webhook；不要把 Docker socket 随意挂进 Bot 容器。
+如果 Bot 运行在 Docker 容器内，容器默认无法直接控制宿主机的 Docker Compose。要使用 `/update`，请自行准备安全 wrapper，例如只暴露固定部署脚本、使用受限 sudo 规则或宿主机侧 webhook；不要把 Docker socket 随意挂进 Bot 容器，也不要把脚本放在普通用户可写目录。
 
 > [!CAUTION]
 > `.env` 包含 Bot Token 和数据库密码，已经被 `.gitignore` 排除。不要将其提交到 GitHub，也不要在日志或截图中公开。
@@ -301,9 +302,9 @@ ruff format --check .
 
 ## 📚 单词内容库
 
-项目内置 50000 个英语单词，随应用包一同部署，不依赖运行时网络请求。词库按项目学习难度规则划分为 B1 15000 个、B2 20000 个和 C1 15000 个；每条记录包含英文、中文释义、音标、词性、英文例句、难度和来源元数据。
+项目内置 12000 个高频通用英语单词，随应用包一同部署，不依赖运行时网络请求。词库按项目学习难度规则划分为 B1 3600 个、B2 4800 个和 C1 3600 个；每条记录包含英文、中文释义、音标、词性、英文例句、难度和来源元数据。
 
-原始词典数据来自 [ECDICT](https://github.com/skywind3000/ECDICT)，遵循 MIT License，许可文本见 `app/data/ECDICT_LICENSE`。B1、B2、C1 由本项目结合 ECDICT 词频排名与考试标签近似映射，并按约 30% / 40% / 30% 分层，仅用于内容分层，并非官方 CEFR 认证结果。
+原始词典数据来自 [ECDICT](https://github.com/skywind3000/ECDICT)，遵循 MIT License，许可文本见 `app/data/ECDICT_LICENSE`。B1、B2、C1 由本项目结合 ECDICT 词频排名与考试标签近似映射，并按约 30% / 40% / 30% 分层；构建时会优先保留高频、通用词，并过滤明显专名、缩写和专业领域词，仅用于内容分层，并非官方 CEFR 认证结果。
 
 维护者可在 Ubuntu / Debian VPS 上一键下载 ECDICT 原始数据并重新生成本地词库：
 
@@ -326,7 +327,7 @@ python scripts/fill_word_examples.py --mode offline
 python scripts/build_sentence_library.py
 ```
 
-Bot 和 Worker 每次启动时都会幂等同步包内内容库。更新已有 VPS 部署并重启容器后，程序会按内容哈希自动补充缺失的单词和句子，不会清空数据库、覆盖已有内容或破坏用户收藏。
+Bot 和 Worker 每次启动时都会幂等同步包内内容库；同步会按内容指纹跳过未变化数据，并以流式分批方式读取词库，减少启动内存占用。更新已有 VPS 部署并重启容器后，程序会按内容哈希自动同步缺失内容，并将旧版包内 ECDICT 生僻词标记为不可推送；不会清空数据库或破坏用户收藏。
 
 ## 🗄️ 数据库设计
 
@@ -344,7 +345,7 @@ Bot 和 Worker 每次启动时都会幂等同步包内内容库。更新已有 V
 ## 🔒 安全原则
 
 - 管理员仅通过 Telegram 数字用户 ID 识别
-- `/update` 远程更新默认关闭，只有显式配置 `ADMIN_UPDATE_COMMAND` 后才可用；不要把任意用户可控内容拼入该命令
+- `/update` 远程更新默认关闭，只有显式配置 `ADMIN_UPDATE_COMMAND` 后才可用；只配置固定的 .sh 脚本绝对路径，不要指向可被普通用户修改的文件
 - 一次性邀请码必须在数据库事务中原子兑换
 - Bot Token、数据库密码和邀请码密钥只从环境变量读取
 - PostgreSQL 不直接暴露到公网

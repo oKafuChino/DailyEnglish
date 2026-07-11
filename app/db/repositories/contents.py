@@ -1,7 +1,7 @@
 import uuid
 from collections.abc import Sequence
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -78,6 +78,9 @@ class ContentRepository:
             statement = statement.on_conflict_do_update(
                 index_elements=["content_hash"],
                 set_={
+                    "translation_zh": statement.excluded.translation_zh,
+                    "phonetic": statement.excluded.phonetic,
+                    "part_of_speech": statement.excluded.part_of_speech,
                     "example_en": func.coalesce(
                         ContentItem.example_en,
                         statement.excluded.example_en,
@@ -86,7 +89,34 @@ class ContentRepository:
                         ContentItem.example_zh,
                         statement.excluded.example_zh,
                     ),
+                    "attribution": statement.excluded.attribution,
+                    "source": statement.excluded.source,
+                    "difficulty": statement.excluded.difficulty,
+                    "metadata": statement.excluded.metadata,
+                    "status": ContentStatus.APPROVED,
                 },
             )
             await self.session.execute(statement)
         await self.session.flush()
+
+    async def reject_packaged_content_not_in_hashes(
+        self,
+        *,
+        content_type: ContentType,
+        source_prefix: str,
+        content_hashes: set[str],
+    ) -> int:
+        if not content_hashes:
+            return 0
+        result = await self.session.execute(
+            update(ContentItem)
+            .where(
+                ContentItem.content_type == content_type,
+                ContentItem.source.startswith(source_prefix),
+                ContentItem.status == ContentStatus.APPROVED,
+                ContentItem.content_hash.not_in(content_hashes),
+            )
+            .values(status=ContentStatus.REJECTED, updated_at=func.now())
+        )
+        await self.session.flush()
+        return result.rowcount or 0

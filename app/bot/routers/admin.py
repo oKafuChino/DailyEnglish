@@ -164,7 +164,7 @@ async def update_bot(message: Message) -> None:
         await message.answer(
             "远程更新尚未启用。\n\n"
             "请先在 .env 中配置 ADMIN_UPDATE_COMMAND，例如：\n"
-            "ADMIN_UPDATE_COMMAND=cd /opt/dailyenglish && sudo bash scripts/deploy.sh"
+            "ADMIN_UPDATE_COMMAND=/opt/dailyenglish/remote-update.sh"
         )
         return
     if _update_lock.locked():
@@ -173,10 +173,14 @@ async def update_bot(message: Message) -> None:
 
     await message.answer("已收到更新指令，开始执行远程更新……")
     async with _update_lock:
-        result = await AdminUpdateService(
-            command=settings.admin_update_command,
-            timeout_seconds=settings.admin_update_timeout_seconds,
-        ).run()
+        try:
+            result = await AdminUpdateService(
+                command=settings.admin_update_command,
+                timeout_seconds=settings.admin_update_timeout_seconds,
+            ).run()
+        except ValueError as exc:
+            await message.answer(f"远程更新配置无效：{escape(str(exc))}")
+            return
 
     output = escape(truncate_output(result.output) or "无输出")
     if result.timed_out:

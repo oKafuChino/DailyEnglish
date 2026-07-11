@@ -75,10 +75,16 @@ async def test_get_random_raises_when_no_content_is_available() -> None:
 
 @pytest.mark.asyncio
 async def test_sync_packaged_content_seeds_words_and_sentences(monkeypatch) -> None:
-    word_seeds = [SimpleNamespace(text_en="word-1"), SimpleNamespace(text_en="word-2")]
-    sentence_seeds = [SimpleNamespace(text_en="sentence-1")]
+    word_seeds = [
+        SimpleNamespace(text_en="word-1", content_hash="word-hash-1"),
+        SimpleNamespace(text_en="word-2", content_hash="word-hash-2"),
+    ]
+    sentence_seeds = [SimpleNamespace(text_en="sentence-1", content_hash="sentence-hash-1")]
     service = ContentService(SimpleNamespace())
-    service.contents = SimpleNamespace(add_approved_seeds=AsyncMock())
+    service.contents = SimpleNamespace(
+        add_approved_seeds=AsyncMock(),
+        reject_packaged_content_not_in_hashes=AsyncMock(),
+    )
     service.fallback_provider = SimpleNamespace(
         list_content=AsyncMock(side_effect=[word_seeds, sentence_seeds])
     )
@@ -97,6 +103,11 @@ async def test_sync_packaged_content_seeds_words_and_sentences(monkeypatch) -> N
         ((word_seeds,),),
         ((sentence_seeds,),),
     ]
+    service.contents.reject_packaged_content_not_in_hashes.assert_awaited_once_with(
+        content_type=ContentType.WORD,
+        source_prefix="ECDICT",
+        content_hashes={"word-hash-1", "word-hash-2"},
+    )
 
 
 @pytest.mark.asyncio

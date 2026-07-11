@@ -47,8 +47,8 @@ class ContentService:
         if content is not None:
             return content
 
-        seeds = await self.fallback_provider.list_content(content_type)
-        await self.contents.add_approved_seeds(seeds)
+        async for _ in self._sync_content_type(content_type):
+            pass
         content = await self.contents.get_random_approved(
             content_type,
             difficulties=normalized_difficulties,
@@ -73,9 +73,8 @@ class ContentService:
                 return 0
             total = 0
             for content_type in (ContentType.WORD, ContentType.SENTENCE):
-                seeds = await self.fallback_provider.list_content(content_type)
-                await self.contents.add_approved_seeds(seeds)
-                total += len(seeds)
+                async for synchronized in self._sync_content_type(content_type):
+                    total += synchronized
             await state.set(PACKAGED_CONTENT_STATE_KEY, fingerprint)
             return total
         finally:
@@ -96,6 +95,45 @@ class ContentService:
 
     async def get_sentence(self, *, difficulties: list[str] | str | None = None) -> ContentItem:
         return await self.get_random(ContentType.SENTENCE, difficulties=difficulties)
+
+    async def _sync_content_type(self, content_type: ContentType):
+        batch = []
+        active_hashes: set[str] = set()
+        iterator = getattr(self.fallback_provider, "iter_content", None)
+        if iterator is None:
+            seeds = await self.fallback_provider.list_content(content_type)
+            await self.contents.add_approved_seeds(seeds)
+            active_hashes = {
+                content_hash
+                for seed in seeds
+                if isinstance(content_hash := getattr(seed, "content_hash", None), str)
+            }
+            if content_type == ContentType.WORD:
+                await self._reject_stale_packaged_words(active_hashes)
+            yield len(seeds)
+            return
+        for seed in iterator(content_type):
+            active_hashes.add(seed.content_hash)
+            batch.append(seed)
+            if len(batch) >= self.contents.SEED_BATCH_SIZE:
+                await self.contents.add_approved_seeds(batch)
+                yield len(batch)
+                batch = []
+        if batch:
+            await self.contents.add_approved_seeds(batch)
+            yield len(batch)
+        if content_type == ContentType.WORD:
+            await self._reject_stale_packaged_words(active_hashes)
+
+    async def _reject_stale_packaged_words(self, active_hashes: set[str]) -> None:
+        reject_stale = getattr(self.contents, "reject_packaged_content_not_in_hashes", None)
+        if reject_stale is None:
+            return
+        await reject_stale(
+            content_type=ContentType.WORD,
+            source_prefix="ECDICT",
+            content_hashes=active_hashes,
+        )
 
 
 def normalize_difficulties(value: list[str] | str | None) -> list[str] | None:

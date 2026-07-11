@@ -5,7 +5,7 @@ import re
 from collections import Counter
 from pathlib import Path
 
-TARGET_COUNTS = {"B1": 15000, "B2": 20000, "C1": 15000}
+TARGET_COUNTS = {"B1": 3600, "B2": 4800, "C1": 3600}
 WORD_PATTERN = re.compile(r"[a-z]+(?:-[a-z]+)?")
 CHINESE_PATTERN = re.compile(r"[\u3400-\u9fff]")
 LEMMA_PATTERN = re.compile(r"(?:^|/)0:([^/]+)")
@@ -13,6 +13,11 @@ SPECIAL_LABEL_PATTERN = re.compile(r"\[[^]]+\]")
 ABBREVIATION_PATTERN = re.compile(r"(?:^|[;；,，\s])abbr\.", re.IGNORECASE)
 PROPER_NOUN_MARKER_PATTERN = re.compile(r"人名|地名|男子名|女子名|姓氏")
 REPEATED_LETTER_PATTERN = re.compile(r"([a-z])\1{2,}")
+SPECIALIZED_TRANSLATION_PATTERN = re.compile(
+    "医学|化学|物理|生物|数学|计算机|法律|经济|金融|宗教|神话|矿物|"
+    "植物|昆虫|病理|解剖|天文|地质|军事|航海|语法|语言学|药物|工程|"
+    "电子|商标|品牌|公司|学院|大学"
+)
 
 # Exam-tagged source data can still contain entries unsuitable for a general audience.
 BLOCKED_WORDS = {
@@ -123,6 +128,8 @@ def build_entry(row: dict[str, str], difficulty: str) -> dict[str, object] | Non
         return None
     if PROPER_NOUN_MARKER_PATTERN.search(translation_raw):
         return None
+    if SPECIALIZED_TRANSLATION_PATTERN.search(translation_raw):
+        return None
     lemma_match = LEMMA_PATTERN.search(row.get("exchange", ""))
     if lemma_match and lemma_match.group(1).lower() != word:
         return None
@@ -155,6 +162,8 @@ def generate(source: Path, output: Path) -> Counter[str]:
     with source.open(encoding="utf-8", newline="") as source_file:
         for row in csv.DictReader(source_file):
             best_rank = min(parse_rank(row.get("bnc", "")), parse_rank(row.get("frq", "")))
+            if best_rank >= 25_000:
+                continue
             if build_entry(row, "B1") is None:
                 continue
             oxford_penalty = 0 if row.get("oxford") == "1" else 1

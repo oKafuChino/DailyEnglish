@@ -8,7 +8,8 @@ def test_redact_secrets_removes_supported_secret_formats() -> None:
         "token=123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi "
         "invite=ABCD-EFGH-JK23 "
         "db=postgresql+asyncpg://dailyenglish:secret@postgres:5432/db "
-        "LLM_API_KEY=private-value POSTGRES_PASSWORD=database-secret"
+        "LLM_API_KEY=private-value POSTGRES_PASSWORD=database-secret "
+        "ADMIN_UPDATE_COMMAND=/opt/dailyenglish/remote-update.sh"
     )
 
     result = redact_secrets(value)
@@ -18,6 +19,7 @@ def test_redact_secrets_removes_supported_secret_formats() -> None:
     assert "dailyenglish:secret" not in result
     assert "private-value" not in result
     assert "database-secret" not in result
+    assert "remote-update.sh" not in result
 
 
 def test_logging_filter_redacts_formatted_arguments() -> None:

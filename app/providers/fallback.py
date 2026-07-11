@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from functools import lru_cache
 from importlib.resources import files
 
@@ -88,11 +89,16 @@ BUILTIN_CONTENT = (
 )
 
 
-@lru_cache(maxsize=1)
 def load_word_library() -> tuple[ContentSeed, ...]:
+    return tuple(iter_word_library())
+
+
+def iter_word_library() -> Iterator[ContentSeed]:
     resource = files("app.data").joinpath("words.jsonl")
     with resource.open("r", encoding="utf-8") as word_file:
-        return tuple(ContentSeed.model_validate_json(line) for line in word_file if line.strip())
+        for line in word_file:
+            if line.strip():
+                yield ContentSeed.model_validate_json(line)
 
 
 @lru_cache(maxsize=1)
@@ -107,7 +113,16 @@ def load_sentence_library() -> tuple[ContentSeed, ...]:
 class FallbackContentProvider:
     async def list_content(self, content_type: ContentType) -> list[ContentSeed]:
         if content_type == ContentType.WORD:
-            return list(load_word_library())
+            return list(iter_word_library())
         if content_type == ContentType.SENTENCE:
             return list(load_sentence_library())
         return [item for item in BUILTIN_CONTENT if item.content_type == content_type]
+
+    def iter_content(self, content_type: ContentType) -> Iterator[ContentSeed]:
+        if content_type == ContentType.WORD:
+            yield from iter_word_library()
+            return
+        if content_type == ContentType.SENTENCE:
+            yield from load_sentence_library()
+            return
+        yield from (item for item in BUILTIN_CONTENT if item.content_type == content_type)

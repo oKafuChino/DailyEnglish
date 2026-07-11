@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -20,18 +21,19 @@ class AdminUpdateService:
         *,
         command: str,
         timeout_seconds: int,
-        runner: Callable[[str], Awaitable[asyncio.subprocess.Process]] | None = None,
+        runner: Callable[[list[str]], Awaitable[asyncio.subprocess.Process]] | None = None,
     ) -> None:
         self.command = command.strip()
         self.timeout_seconds = timeout_seconds
-        self.runner = runner or _create_shell_process
+        self.runner = runner or _create_process
 
     async def run(self) -> UpdateResult:
         if not self.command:
             raise ValueError("Admin update command is not configured")
+        argv = self._build_argv()
 
         try:
-            process = await self.runner(self.command)
+            process = await self.runner(argv)
         except OSError as exc:
             return UpdateResult(
                 return_code=127,
@@ -55,6 +57,15 @@ class AdminUpdateService:
             output=_decode_output(stdout),
         )
 
+    def _build_argv(self) -> list[str]:
+        script = Path(self.command).expanduser()
+        is_posix_absolute = self.command.startswith("/")
+        if not script.is_absolute() and not is_posix_absolute:
+            raise ValueError("Admin update command must be an absolute script path")
+        if script.suffix not in {".sh", ".bash"}:
+            raise ValueError("Admin update command must point to a .sh or .bash script")
+        return ["bash", self.command if is_posix_absolute else str(script)]
+
 
 def _decode_output(value: bytes | None) -> str:
     if not value:
@@ -62,9 +73,9 @@ def _decode_output(value: bytes | None) -> str:
     return value.decode("utf-8", errors="replace").strip()
 
 
-async def _create_shell_process(command: str) -> asyncio.subprocess.Process:
-    return await asyncio.create_subprocess_shell(
-        command,
+async def _create_process(argv: list[str]) -> asyncio.subprocess.Process:
+    return await asyncio.create_subprocess_exec(
+        *argv,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
     )
